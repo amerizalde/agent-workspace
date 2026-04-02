@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "bdotools-conversation-solver",
+			"path": "bdotools-conversation-solver"
+		}
+	],
+	"settings": {}
+}
