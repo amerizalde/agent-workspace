@@ -55,6 +55,7 @@ pi docs_agent "write js doc comments for all files in lib"
 import re
 import os
 from pathlib import Path
+from typing import Iterator
 
 # ---------------------------------------------------------------------------
 # Language definitions
@@ -63,12 +64,12 @@ LANG_DEFINITIONS = {
     "python": {
         "extensions": {".py"},
         "doc_pattern": r"(def\s+\w+\s*\([^)]*\):)(?=\n(?=\s*(?:#|$|\S))",
-        "doc_template": """\n    """\n    TODO: add a description here.\n    """\n",
+        "doc_template": '\n    """\n    TODO: add a description here.\n    """\n',
     },
     "javascript": {
         "extensions": {".js", ".jsx", ".ts", ".tsx"},
         "doc_pattern": r"(export\s+function\s+\w+\s*\([^)]*\):|function\s+\w+\s*\([^)]*\)\s*{)(?=\n(?=\s*(?://|$|\S))",
-        "doc_template": """\n/**\n * TODO: add a description.\n */\n",
+        "doc_template": """\n/**\n * TODO: add a description.\n */\n""",
     },
     "go": {
         "extensions": {".go"},
@@ -86,7 +87,7 @@ LANG_DEFINITIONS = {
 # Helper functions
 # ---------------------------------------------------------------------------
 
-def detect_language_from_task(task: str) -> str:
+def detect_language_from_task(task: str) -> str | None:
     """Return a language key based on the task string.
 
     The function looks for keywords like "python", "js", "javascript",
@@ -102,7 +103,7 @@ def detect_language_from_task(task: str) -> str:
     return None
 
 
-def find_source_files(root: Path, extensions: set) -> list[Path]:
+def find_source_files(root: Path, extensions: set) -> Iterator[Path]:
     """Recursively yield files under *root* matching *extensions*."""
     for path in root.rglob("*"):
         if path.is_file() and path.suffix in extensions:
@@ -173,5 +174,4 @@ async def run(task: str, ctx):
             modified += 1
             ctx.log(f"Updated {file}")
 
-    return f"✅ Processed {processed} file(s); added docs to {modified}.
-"  
+    return f"✅ Processed {processed} file(s); added docs to {modified}."
