@@ -1,24 +1,54 @@
 # agents/docs_agent.py
-"""A generic documentation‑comment agent.
+"""Generic Documentation Comment Agent
+=======================================
 
-This agent looks at the *task* argument and, based on the language
-specified, scans the target directory (or the current working
-directory by default) for source files and inserts a placeholder
-comment block in a language‑appropriate style.  It supports the
-following languages out of the box:
+**Purpose**
+-----------
+This agent automatically injects placeholder documentation comments into
+source files of supported languages.  It is intended to be called by other
+agents as part of a larger pipeline, for example to enrich a freshly
+generated code base or to prepare a project for a documentation pass.
 
-* Python   – ``"""TODO: description."""``
-* JavaScript/TypeScript – JSDoc comment ``/** ... */``
-* Go        – comment lines prefixed with ``//``
-* Rust      – comment lines prefixed with ``//``
+**How to Invoke**
+-----------------
+The agent receives a *task* string that should describe:
 
-The agent can be easily extended by adding new entries to the
-``LANG_DEFINITIONS`` mapping.
+1. **Language** – one of ``python``, ``javascript`` (or ``js``), ``go`` or ``rust``.
+2. **Target directory** – optional.  The first word after the language
+   keyword is interpreted as a relative or absolute path.  If omitted,
+   the current working directory is used.
 
-Usage example:
+Example:
 
 ```
-> pi docs_agent "add documentation comments to js files in src"
+pi docs_agent "add documentation comments to python files in lib"
+```
+
+**Return Value**
+-----------------
+The function returns a short summary string, e.g. ``"✅ Processed 10 file(s); added docs to 7."``.  The calling agent can use this for logging or error handling.
+
+**Extending**
+-------------
+Add a new language to the ``LANG_DEFINITIONS`` mapping with the
+following keys:
+
+- ``extensions`` – set of file extensions.
+- ``doc_pattern`` – a regex that matches a function/def header that
+  lacks a comment.
+- ``doc_template`` – the comment block to insert.
+
+**Caveats**
+-----------
+* The regexes are intentionally simple; they may not cover every
+  edge‑case of a language.
+* The agent does not run a full parse; it simply looks for a header and
+  inserts text immediately after it.
+
+**Example Usage**
+-----------------
+```bash
+pi docs_agent "write js doc comments for all files in lib"
 ```
 """
 
