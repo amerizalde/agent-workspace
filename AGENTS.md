@@ -1,12 +1,16 @@
 # Custom Agents
 
-This repository uses a three-agent workflow for policy-gated coding in VS Code custom agents.
+This repository uses a four-agent workflow for policy-gated coding in VS Code custom agents.
 
 ## Agents
 
 ### gen-disc-orchestrator
 Path: .github/agents/orchestrator.agent.md
-Role: Coordinates generator and discriminator with bounded retries.
+Role: Coordinates planning, generation, and discrimination with bounded retries.
+
+### planning-agent
+Path: .github/agents/planning-agent.agent.md
+Role: Produces a concise implementation plan and scoped steps before coding.
 
 ### functional-generator
 Path: .github/agents/functional-generator.agent.md
@@ -17,10 +21,11 @@ Path: .github/agents/policy-discriminator.agent.md
 Role: Validates modified code with a strict pass/fail rubric and targeted directives.
 
 ## Workflow
-1. Orchestrator delegates implementation to Functional Generator.
-2. Orchestrator delegates review to Policy Discriminator.
-3. On FAIL, orchestrator sends targeted directives back to Functional Generator.
-4. Loop stops on PASS or after 2 corrective rounds.
+1. Orchestrator delegates planning to Planning Agent.
+2. Orchestrator delegates implementation to Functional Generator.
+3. Orchestrator delegates review to Policy Discriminator.
+4. On FAIL, orchestrator sends targeted directives back to Functional Generator.
+5. Loop stops on PASS or after 2 corrective rounds.
 
 ## Policy Goals
 - Functional, composable code.
