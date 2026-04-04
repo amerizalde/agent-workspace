@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neural Network Abstraction Demo</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="info-card">
+        <h1>Neural Network Abstraction Explorer</h1>
+        <p>
+          A neural network is an abstract computer model inspired by the brain.
+          The human brain is estimated to have 10^11 neurons and 10^15 links.
+          This simulation is a tiny scaled abstraction for learning, not a literal
+          rendering of those full biological numbers.
+        </p>
+        <ul>
+          <li>Click near a neuron to stimulate it and watch activity propagate.</li>
+          <li>Press 1/2/3 to switch mode: perception, cognition, learning.</li>
+          <li>Press O to toggle overlays, Space to pause/resume, R to reset.</li>
+          <li>Press H to show/hide control help in the canvas panel.</li>
+        </ul>
+      </header>
+      <section id="canvas-root" class="canvas-panel" aria-label="interactive neural network canvas"></section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script src="sketch.js"></script>
+  </body>
+</html>
