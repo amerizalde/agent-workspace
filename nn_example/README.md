@@ -3,6 +3,8 @@
 This is a small, educational browser simulation that explains neural networks as
 an abstraction inspired by the brain.
 
+Live Example -> [Here](https://amerizalde.github.io/agent-workspace/)
+
 ## What this demonstrates
 
 - Brain scale reference: about 10^11 neurons and 10^15 links (estimated).
