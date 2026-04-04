@@ -79,3 +79,39 @@ body {
     min-height: 340px;
   }
 }
+
+@media (max-width: 390px) {
+  .page-shell {
+    padding: 0.6rem;
+    gap: 0.7rem;
+  }
+
+  .info-card {
+    padding: 0.75rem 0.8rem;
+  }
+
+  .info-card h1 {
+    font-size: 1.12rem;
+    line-height: 1.3;
+  }
+
+  .info-card p {
+    margin: 0.55rem 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+  }
+
+  .info-card ul {
+    padding-left: 1.05rem;
+    font-size: 0.93rem;
+    line-height: 1.5;
+  }
+
+  .info-card li + li {
+    margin-top: 0.3rem;
+  }
+
+  .canvas-panel {
+    min-height: 330px;
+  }
+}
