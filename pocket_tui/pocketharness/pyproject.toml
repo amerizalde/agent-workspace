@@ -1,0 +1,17 @@
+[project]
+name = "pocketharness"
+version = "0.1.0"
+description = "Pocket Flow Agent Harness - minimal CLI agent system"
+requires-python = ">=3.8"
+readme = "README.md"
+
+[project.scripts]
+pocket = "pocketharness.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pocketharness*"]

@@ -1,0 +1,17 @@
+{
+  "materials": [
+    { "name": "steel", "url": "https://example.com/steel.jpg" },
+    { "name": "glass", "url": "https://example.com/glass.jpg" },
+    { "name": "water", "url": "https://example.com/water.jpg" },
+    { "name": "wood", "url": "https://example.com/wood.jpg" },
+    { "name": "leather", "url": "https://example.com/leather.jpg" },
+    { "name": "skin", "url": "https://example.com/skin.jpg" },
+    { "name": "concrete", "url": "https://example.com/concrete.jpg" },
+    { "name": "rubber", "url": "https://example.com/rubber.jpg" }
+  ],
+  "hdri": [
+    "https://polyhaven.com/a/sunroom1k",
+    "https://polyhaven.com/a/sunset1k",
+    "https://polyhaven.com/a/studio1k"
+  ]
+}

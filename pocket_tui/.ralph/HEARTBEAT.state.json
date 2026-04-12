@@ -1,0 +1,49 @@
+{
+  "name": "HEARTBEAT",
+  "taskFile": ".ralph\\HEARTBEAT.md",
+  "iteration": 1,
+  "maxIterations": 50,
+  "itemsPerIteration": 0,
+  "reflectEvery": 0,
+  "reflectInstructions": "REFLECTION CHECKPOINT\n\nPause and reflect on your progress:\n1. What has been accomplished so far?\n2. What's working well?\n3. What's not working or blocking progress?\n4. Should the approach be adjusted?\n5. What are the next priorities?\n\nUpdate the task file with your reflection, then continue working.",
+  "active": true,
+  "status": "active",
+  "startedAt": "2026-04-11T15:03:07.952Z",
+  "lastReflectionAt": 0,
+  "progress": {
+    "filesCreated": {
+      ".pocketharness/tasks/heartbeat.py": true,
+      ".ralph/HEARTBEAT.md": true,
+      "requirements.txt": true,
+      ".ralph/HEARTBEAT.state.json": true
+    },
+    "examplesCreated": {
+      "./examples/email_monitor.py": true,
+      "./examples/deploy_health_monitor.py": true,
+      "./examples/slack_bot_monitor.py": true,
+      "./examples/README.md": true
+    },
+    "implementations": {
+      "WaitNode": true,
+      "CheckEmailNode": true,
+      "ProcessEmailNode": true,
+      "EmailFlow": true,
+      "DemoFlow": true
+    },
+    "features": {
+      "periodic_polling": true,
+      "nested_flows": true,
+      "conditional_processing": true,
+      "llm_summaries": true,
+      "clean_lifecycle": true
+    },
+    "useCases": [
+      "email_monitor.py - Startup email triage",
+      "deploy_health_monitor.py - DevOps health checks",
+      "slack_bot_monitor.py - Slack auto-responder"
+    ],
+    "totalFiles": 7,
+    "totalLines": 535,
+    "totalBytes": 20991
+  }
+}

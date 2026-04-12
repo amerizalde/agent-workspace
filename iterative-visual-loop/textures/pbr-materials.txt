@@ -1,0 +1,23 @@
+# PBR Material Maps Collection
+# HDRI Environment Maps (PolyHaven)
+sunroom1k_hdr.jpg     # Soft daylight, indoor studio
+sunset1k_hdr.jpg      # Golden hour, warm tones  
+studio1k_hdr.jpg      # Neutral studio lighting
+forest1k_hdr.jpg      # Natural green environment
+city_day1k_hdr.jpg    # Urban daytime scene
+city_night1k_hdr.jpg  # Night city with lights
+
+# Sample textures to be added
+concrete.jpg          # Diffuse map for concrete material
+wood_bark.jpg         # Diffuse map for wood material
+leather_brown.jpg     # Diffuse map for leather material
+metal_steel.jpg       # Normal/bump for steel
+rubber_black.jpg      # Roughness map for rubber
+
+# Environment collection
+https://polyhaven.com/environment/   # Main HDRI collection
+https://polyhaven.com/a/sunroom1k
+https://polyhaven.com/a/sunset1k
+https://polyhaven.com/a/studio2k
+https://polyhaven.com/a/forest1k
+https://polyhaven.com/a/factory1k

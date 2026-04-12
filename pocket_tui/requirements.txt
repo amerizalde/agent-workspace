@@ -1,0 +1,13 @@
+# Heartbeat Monitor - Pocket Flow Harness Task
+# 
+# This task runs within the pocketharness environment.
+# No additional dependencies required beyond the harness.
+#
+# The task uses:
+# - time, random (standard library)
+# - pocketharness.harness
+# - pocketharness.shared_store
+#
+# If you want to run the full OpenAI integration:
+# pip install openai
+# 

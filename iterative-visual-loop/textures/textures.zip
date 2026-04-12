@@ -1,0 +1,11 @@
+This file simulates a ZIP bundle of all texture files from the PBR library.
+
+Contents would include:
+- steel.jpg, glass.jpg, leather.jpg, skin.jpg
+- water.jpg, wood.jpg, concrete.jpg, rubber.jpg
+- hdri-sunroom-1k.jpg, hdri-sunset-1k.jpg, hdri-studio-1k.jpg
+- normal_maps/, roughness_maps/, displacement_maps/
+- Environment maps from PolyHaven
+
+Total size: ~200MB
+Files: ~20+ PBR materials + HDRI environments
