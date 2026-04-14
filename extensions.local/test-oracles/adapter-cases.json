@@ -1,0 +1,99 @@
+{
+  "directExtraction": [
+    {
+      "name": "extracts-diagnostics-tests-and-git-from-runtime-payload",
+      "payload": [
+        {
+          "type": "assistant",
+          "text": "Problems: 3 errors, 1 warning, 2 hints. vitest summary: 12 passed, 2 failed. On branch feature/direct-adapter\nM  extensions.local/heartbeat-agent.ts\n M extensions.local/heartbeat.md"
+        }
+      ],
+      "expected": {
+        "diagnostics": { "available": true, "errorCount": 3, "warningCount": 1, "infoCount": 2 },
+        "tests": { "available": true, "failedCount": 2, "hasFailures": true },
+        "git": { "available": true, "isDirty": true, "stagedCount": 1, "unstagedCount": 1, "branch": "feature/direct-adapter" },
+        "hasAny": true
+      }
+    },
+    {
+      "name": "returns-no-direct-signals-when-payload-has-no-strong-markers",
+      "payload": [
+        { "type": "assistant", "text": "General discussion about architecture and style." }
+      ],
+      "expected": {
+        "diagnostics": null,
+        "tests": null,
+        "git": null,
+        "hasAny": false
+      }
+    }
+  ],
+  "precedence": [
+    {
+      "name": "prefers-direct-over-probe-and-fallback",
+      "input": {
+        "direct": {
+          "diagnostics": { "available": true, "errorCount": 4, "warningCount": 0, "infoCount": 0 },
+          "tests": { "available": true, "failedCount": 1, "hasFailures": true },
+          "git": { "available": true, "isDirty": true, "stagedCount": 2, "unstagedCount": 0, "branch": "feature/a" }
+        },
+        "probe": {
+          "diagnostics": { "available": true, "errorCount": 1, "warningCount": 1, "infoCount": 0 },
+          "tests": { "available": true, "failedCount": 0, "hasFailures": false },
+          "git": { "available": true, "isDirty": false, "stagedCount": 0, "unstagedCount": 0, "branch": "main" }
+        },
+        "fallback": {
+          "diagnostics": { "available": true, "errorCount": 2, "warningCount": 0, "infoCount": 0 },
+          "tests": { "available": true, "failedCount": 2, "hasFailures": true },
+          "git": { "available": true, "isDirty": true, "stagedCount": 0, "unstagedCount": 1, "branch": null }
+        }
+      },
+      "expected": {
+        "sourceTier": "direct-adapter",
+        "diagnosticsErrorCount": 4,
+        "testsFailedCount": 1,
+        "gitBranch": "feature/a"
+      }
+    },
+    {
+      "name": "falls-back-to-probe-when-direct-missing",
+      "input": {
+        "direct": {},
+        "probe": {
+          "diagnostics": { "available": true, "errorCount": 1, "warningCount": 2, "infoCount": 0 },
+          "tests": { "available": true, "failedCount": 3, "hasFailures": true },
+          "git": { "available": true, "isDirty": false, "stagedCount": 0, "unstagedCount": 0, "branch": "main" }
+        },
+        "fallback": {
+          "diagnostics": { "available": true, "errorCount": 7, "warningCount": 0, "infoCount": 0 },
+          "tests": { "available": true, "failedCount": 5, "hasFailures": true },
+          "git": { "available": true, "isDirty": true, "stagedCount": 1, "unstagedCount": 1, "branch": "feature/fallback" }
+        }
+      },
+      "expected": {
+        "sourceTier": "external-probe",
+        "diagnosticsErrorCount": 1,
+        "testsFailedCount": 3,
+        "gitBranch": "main"
+      }
+    },
+    {
+      "name": "uses-fallback-when-direct-and-probe-missing",
+      "input": {
+        "direct": {},
+        "probe": null,
+        "fallback": {
+          "diagnostics": { "available": true, "errorCount": 2, "warningCount": 0, "infoCount": 0 },
+          "tests": { "available": true, "failedCount": 0, "hasFailures": false },
+          "git": { "available": true, "isDirty": true, "stagedCount": 0, "unstagedCount": 2, "branch": null }
+        }
+      },
+      "expected": {
+        "sourceTier": "session-typed",
+        "diagnosticsErrorCount": 2,
+        "testsFailedCount": 0,
+        "gitBranch": null
+      }
+    }
+  ]
+}

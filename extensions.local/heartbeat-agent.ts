@@ -6,6 +6,10 @@ const {
   parseHeartbeatMaintainerOutput,
   parsePolicyDiscriminatorOutput,
 } = require("./output-parsers");
+const {
+  collectDirectSignalsFromPayload,
+  chooseDirectThenProbeThenFallback,
+} = require("./signal-adapters");
 
 type HeartbeatActionName = "idle" | "summarize" | "maintenance-pass" | "awaiting-approval";
 type ApprovalDecision = "approved" | "deferred" | "rejected";
@@ -33,7 +37,7 @@ type GitStateSignal = {
 
 type HeartbeatSignals = {
   collectedAt: string;
-  sourceTier: "session-typed" | "cached" | "external-probe";
+  sourceTier: "session-typed" | "cached" | "external-probe" | "direct-adapter";
   recentEntryCount: number;
   userEntryCount: number;
   assistantEntryCount: number;
@@ -628,6 +632,13 @@ function mergeExternalProbe(baseSignals: HeartbeatSignals): HeartbeatSignals {
   };
 }
 
+function getFreshExternalProbe(): ExternalSignalProbe | null {
+  const probe = heartbeatState.lastExternalProbe;
+  if (!probe) return null;
+  if (secondsSince(probe.collectedAt) > heartbeatState.externalProbeTtlSeconds) return null;
+  return probe;
+}
+
 function collectTypedSignals(ctx: any): HeartbeatSignals {
   const canReuseCache = heartbeatState.lastSignals
     && secondsSince(heartbeatState.lastSignals.collectedAt) <= heartbeatState.signalCacheTtlSeconds;
@@ -640,27 +651,43 @@ function collectTypedSignals(ctx: any): HeartbeatSignals {
   }
 
   const session = collectSessionSignals(ctx);
-  const diagnostics = collectDiagnosticsSignal(session.entries);
-  const tests = collectTestSignal(session.entries);
-  const git = collectGitSignal(session.entries);
+  const fallbackSignals = {
+    diagnostics: collectDiagnosticsSignal(session.entries),
+    tests: collectTestSignal(session.entries),
+    git: collectGitSignal(session.entries),
+  };
+
+  const directSignals = collectDirectSignalsFromPayload(session.entries);
+  const resolvedSignals = chooseDirectThenProbeThenFallback({
+    direct: {
+      diagnostics: directSignals.diagnostics,
+      tests: directSignals.tests,
+      git: directSignals.git,
+    },
+    probe: getFreshExternalProbe(),
+    fallback: fallbackSignals,
+  });
+
+  const collectedAt = resolvedSignals.sourceTier === "external-probe" && heartbeatState.lastExternalProbe
+    ? heartbeatState.lastExternalProbe.collectedAt
+    : nowIso();
 
   const signals: HeartbeatSignals = {
-    collectedAt: nowIso(),
-    sourceTier: "session-typed",
+    collectedAt,
+    sourceTier: resolvedSignals.sourceTier,
     recentEntryCount: session.recentEntryCount,
     userEntryCount: session.userEntryCount,
     assistantEntryCount: session.assistantEntryCount,
     textualErrorCount: session.textualErrorCount,
     failureMentionCount: session.failureMentionCount,
     fileMentionCount: session.fileMentionCount,
-    diagnostics,
-    tests,
-    git,
+    diagnostics: resolvedSignals.diagnostics,
+    tests: resolvedSignals.tests,
+    git: resolvedSignals.git,
   };
 
-  const mergedSignals = mergeExternalProbe(signals);
-  heartbeatState.lastSignals = mergedSignals;
-  return mergedSignals;
+  heartbeatState.lastSignals = signals;
+  return signals;
 }
 
 function buildIssueFingerprint(signals: HeartbeatSignals): string {
@@ -1093,7 +1120,7 @@ function registerSignalProbeCommands(pi: ExtensionAPI): void {
   });
 }
 
-export default function (pi: ExtensionAPI) {
+function registerLifecycleHandlers(pi: ExtensionAPI): void {
   pi.on("session_start", async (_event, ctx) => {
     activeContext = ctx;
     heartbeatState = readPersistedState(ctx);
@@ -1104,10 +1131,11 @@ export default function (pi: ExtensionAPI) {
   pi.on("turn_start", async (_event, ctx) => {
     activeContext = ctx;
     ingestTurnStartParseSignals(pi, ctx);
-
     updateStatus(ctx);
   });
+}
 
+function registerBaseHeartbeatCommands(pi: ExtensionAPI): void {
   registerHeartbeatCommand(pi, "heartbeat", {
     description: "Show heartbeat agent status",
     handler: async (_args, ctx) => {
@@ -1197,25 +1225,6 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  registerSignalProbeCommands(pi);
-
-  registerHeartbeatCommand(pi, "heartbeat-approval-timeout", {
-    description: "Set approval timeout in seconds: /heartbeat-approval-timeout 3600",
-    handler: async (args, ctx) => {
-      activeContext = ctx;
-      const parsed = parseSecondsArg(args);
-      if (parsed === null) {
-        notify(ctx, "Usage: /heartbeat-approval-timeout <seconds>", "warning");
-        return;
-      }
-
-      heartbeatState.approvalTimeoutSeconds = clampApprovalTimeout(parsed);
-      persistState(pi);
-      updateStatus(ctx);
-      notify(ctx, `heartbeat approval timeout=${heartbeatState.approvalTimeoutSeconds}s`, "info");
-    },
-  });
-
   registerHeartbeatCommand(pi, "heartbeat-focus", {
     description: "Set the heartbeat maintenance focus text",
     handler: async (args, ctx) => {
@@ -1264,6 +1273,25 @@ export default function (pi: ExtensionAPI) {
       persistState(pi);
       updateStatus(ctx);
       notify(ctx, `heartbeat editEnabled=${heartbeatState.editEnabled}`, "info");
+    },
+  });
+}
+
+function registerApprovalCommands(pi: ExtensionAPI): void {
+  registerHeartbeatCommand(pi, "heartbeat-approval-timeout", {
+    description: "Set approval timeout in seconds: /heartbeat-approval-timeout 3600",
+    handler: async (args, ctx) => {
+      activeContext = ctx;
+      const parsed = parseSecondsArg(args);
+      if (parsed === null) {
+        notify(ctx, "Usage: /heartbeat-approval-timeout <seconds>", "warning");
+        return;
+      }
+
+      heartbeatState.approvalTimeoutSeconds = clampApprovalTimeout(parsed);
+      persistState(pi);
+      updateStatus(ctx);
+      notify(ctx, `heartbeat approval timeout=${heartbeatState.approvalTimeoutSeconds}s`, "info");
     },
   });
 
@@ -1328,4 +1356,11 @@ export default function (pi: ExtensionAPI) {
       notify(ctx, "heartbeat approval applied: rejected", "info");
     },
   });
+}
+
+export default function (pi: ExtensionAPI) {
+  registerLifecycleHandlers(pi);
+  registerBaseHeartbeatCommands(pi);
+  registerSignalProbeCommands(pi);
+  registerApprovalCommands(pi);
 }

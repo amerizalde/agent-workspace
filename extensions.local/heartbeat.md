@@ -60,10 +60,10 @@ Notes:
 6. Persist state, update status UI, and schedule the next cycle.
 
 ## Typed Signal Tiers
-1. Fast tier (always available): session-derived counters and typed snapshots.
-2. Cached tier: reuse recent signals for the configured TTL to reduce churn.
+1. Cached tier: reuse recent signals for the configured TTL to reduce churn.
+2. Direct adapter tier: parse normalized diagnostics/test/git signals from available session/runtime text payloads.
 3. External probe tier: structured snapshots returned from agent-driven command probes.
-4. Future tier: direct diagnostics/test/git integration when extension APIs provide stronger access.
+4. Heuristic fallback tier: session-derived counters and typed snapshots when direct/probe signals are unavailable.
 
 ## External Probe Marker
 When requesting a probe, the runtime expects this marker in assistant output:
@@ -103,7 +103,7 @@ If a signal is unavailable, set available=false and provide zero/null values.
 5. No hidden state outside the persisted heartbeat entry.
 
 ## Current Implementation Scope
-The first implementation uses session-entry heuristics because that capability already exists in the local extension examples. It can start, stop, pause, resume, run once, change interval, and queue maintenance steer messages. Richer workspace signals such as diagnostics or git state can be added once a stable extension-side access path is available.
+The implementation uses a bounded signal precedence chain: direct adapter extraction from session/runtime payloads, then external probe snapshots, then session heuristics fallback. It can start, stop, pause, resume, run once, change interval, and queue maintenance steer messages.
 
 ## Commands
 - /heartbeat
@@ -127,7 +127,7 @@ The first implementation uses session-entry heuristics because that capability a
 - /heartbeat-reject
 
 ## Current Limits
-1. Typed signals are currently inferred from session entries unless an external probe marker is ingested.
+1. Direct adapters depend on structured or strongly-marked runtime text; weak payloads fall back to probe/heuristics.
 2. Structured handoff is dispatched as steer instructions; native runtime agent-call APIs can replace this when available.
 3. Approval gates currently use command-driven controls; richer UI approval workflows can be added later.
 
@@ -135,3 +135,4 @@ The first implementation uses session-entry heuristics because that capability a
 - Parser oracle: `node extensions.local/test-oracles/validate-output-parsers.js`
 - Approval lifecycle oracle: `node extensions.local/test-oracles/validate-heartbeat-lifecycle.js`
 - API capability oracle: `node extensions.local/test-oracles/validate-api-capabilities.js`
+- Signal adapter oracle: `node extensions.local/test-oracles/validate-signal-adapters.js`
