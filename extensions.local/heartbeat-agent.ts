@@ -147,6 +147,119 @@ let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
 let activeContext: any = null;
 let cycleInFlight = false;
 
+function noteDegraded(message: string): void {
+  const normalized = String(message || "").trim();
+  if (!normalized) return;
+  const marker = `[degraded] ${normalized}`;
+  if (String(heartbeatState.lastOutcome || "").includes(marker)) return;
+
+  heartbeatState.lastOutcome = heartbeatState.lastOutcome && heartbeatState.lastOutcome !== "idle"
+    ? `${heartbeatState.lastOutcome} | ${marker}`
+    : marker;
+}
+
+function getSessionEntries(ctx: any, source: string): any[] {
+  const getEntries = ctx?.sessionManager?.getEntries;
+  if (typeof getEntries !== "function") {
+    noteDegraded(`ctx.sessionManager.getEntries unavailable (${source})`);
+    return [];
+  }
+
+  try {
+    const entries = getEntries.call(ctx.sessionManager);
+    if (!Array.isArray(entries)) {
+      noteDegraded(`ctx.sessionManager.getEntries returned non-array (${source})`);
+      return [];
+    }
+    return entries;
+  } catch (error) {
+    noteDegraded(`ctx.sessionManager.getEntries failed (${source}): ${String(error)}`);
+    return [];
+  }
+}
+
+function appendStateEntry(pi: ExtensionAPI, customType: string, data: unknown): boolean {
+  const appendEntry = (pi as any)?.appendEntry;
+  if (typeof appendEntry !== "function") {
+    noteDegraded("pi.appendEntry unavailable");
+    return false;
+  }
+
+  try {
+    appendEntry.call(pi, customType, data);
+    return true;
+  } catch (error) {
+    noteDegraded(`pi.appendEntry failed: ${String(error)}`);
+    return false;
+  }
+}
+
+function sendSteerMessage(pi: ExtensionAPI, text: string, reason: string): boolean {
+  const sendUserMessage = (pi as any)?.sendUserMessage;
+  if (typeof sendUserMessage !== "function") {
+    noteDegraded(`pi.sendUserMessage unavailable (${reason})`);
+    return false;
+  }
+
+  try {
+    sendUserMessage.call(pi, text, { deliverAs: "steer" });
+    return true;
+  } catch (error) {
+    noteDegraded(`pi.sendUserMessage failed (${reason}): ${String(error)}`);
+    return false;
+  }
+}
+
+function registerHeartbeatCommand(pi: ExtensionAPI, name: string, commandDef: any): boolean {
+  const registerCommand = (pi as any)?.registerCommand;
+  if (typeof registerCommand !== "function") {
+    noteDegraded(`pi.registerCommand unavailable (${name})`);
+    return false;
+  }
+
+  try {
+    registerCommand.call(pi, name, commandDef);
+    return true;
+  } catch (error) {
+    noteDegraded(`pi.registerCommand failed (${name}): ${String(error)}`);
+    return false;
+  }
+}
+
+function safeUiNotify(ctx: any, message: string, level: string): boolean {
+  if (!ctx?.hasUI) return false;
+  const notifyFn = ctx?.ui?.notify;
+  if (typeof notifyFn !== "function") {
+    noteDegraded("ctx.ui.notify unavailable");
+    return false;
+  }
+
+  try {
+    notifyFn.call(ctx.ui, message, level);
+    return true;
+  } catch (error) {
+    noteDegraded(`ctx.ui.notify failed: ${String(error)}`);
+    return false;
+  }
+}
+
+function safeUiSetStatus(ctx: any, id: string, message: string): boolean {
+  if (!ctx?.hasUI) return false;
+  const setStatusFn = ctx?.ui?.setStatus;
+  if (typeof setStatusFn !== "function") {
+    noteDegraded("ctx.ui.setStatus unavailable");
+    return false;
+  }
+
+  try {
+    setStatusFn.call(ctx.ui, id, message);
+    return true;
+  } catch (error) {
+    noteDegraded(`ctx.ui.setStatus failed: ${String(error)}`);
+    return false;
+  }
+}
+
 function cloneDefaultState(): HeartbeatState {
   return {
     ...DEFAULT_STATE,
@@ -195,7 +308,7 @@ function clampApprovalTimeout(seconds: number): number {
 
 function readPersistedState(ctx: any): HeartbeatState {
   const restored = cloneDefaultState();
-  const entries = ctx?.sessionManager?.getEntries?.() ?? [];
+  const entries = getSessionEntries(ctx, "readPersistedState");
 
   for (const entry of entries) {
     if (entry?.type !== "custom") continue;
@@ -249,15 +362,14 @@ function readPersistedState(ctx: any): HeartbeatState {
 }
 
 function persistState(pi: ExtensionAPI): void {
-  pi.appendEntry(STATE_ENTRY_TYPE, {
+  appendStateEntry(pi, STATE_ENTRY_TYPE, {
     ...heartbeatState,
     history: heartbeatState.history.slice(-heartbeatState.maxHistory),
   });
 }
 
 function notify(ctx: any, message: string, level: string = "info"): void {
-  if (!ctx?.hasUI) return;
-  ctx.ui.notify(message, level);
+  safeUiNotify(ctx, message, level);
 }
 
 function updateStatus(ctx: any): void {
@@ -274,7 +386,8 @@ function updateStatus(ctx: any): void {
     : "off";
 
   const pendingState = heartbeatState.pendingApproval ? " pending:yes" : " pending:no";
-  ctx.ui.setStatus(
+  safeUiSetStatus(
+    ctx,
     STATUS_ID,
     `heartbeat ${mode} cycle:${heartbeatState.cycle} fail:${heartbeatState.consecutiveFailures}${pendingState}`,
   );
@@ -316,7 +429,7 @@ function collectSessionSignals(ctx: any): {
   failureMentionCount: number;
   fileMentionCount: number;
 } {
-  const entries = ctx?.sessionManager?.getEntries?.() ?? [];
+  const entries = getSessionEntries(ctx, "collectSessionSignals");
   const recentEntries = entries.slice(-30);
   let userEntryCount = 0;
   let assistantEntryCount = 0;
@@ -711,12 +824,12 @@ function queueApproval(request: HeartbeatRequestEnvelope, ctx: any): void {
   );
 }
 
-function dispatchHandoff(pi: ExtensionAPI, request: HeartbeatRequestEnvelope): void {
+function dispatchHandoff(pi: ExtensionAPI, request: HeartbeatRequestEnvelope): boolean {
   const prompt = buildMaintenancePrompt(request);
-  pi.sendUserMessage(prompt, { deliverAs: "steer" });
+  return sendSteerMessage(pi, prompt, "dispatch-handoff");
 }
 
-function requestSignalProbe(pi: ExtensionAPI): void {
+function requestSignalProbe(pi: ExtensionAPI): boolean {
   const prompt = [
     "Collect a current heartbeat signal snapshot for this workspace.",
     "Use available tools/commands to gather diagnostics, test status, and git state if available.",
@@ -731,7 +844,7 @@ function requestSignalProbe(pi: ExtensionAPI): void {
     "If a signal is unavailable, set available=false and use zero/null values.",
   ].join("\n");
 
-  pi.sendUserMessage(prompt, { deliverAs: "steer" });
+  return sendSteerMessage(pi, prompt, "request-signal-probe");
 }
 
 async function runHeartbeatCycle(pi: ExtensionAPI, ctx: any, trigger: string): Promise<void> {
@@ -780,13 +893,17 @@ async function runHeartbeatCycle(pi: ExtensionAPI, ctx: any, trigger: string): P
       heartbeatState.recentIssueFingerprint = fingerprint;
 
       if (request.dryRun || !request.editEnabled) {
-        dispatchHandoff(pi, request);
-        heartbeatState.lastOutcome = "queued dry-run maintenance handoff";
+        const sent = dispatchHandoff(pi, request);
+        heartbeatState.lastOutcome = sent
+          ? "queued dry-run maintenance handoff"
+          : "degraded: unable to dispatch dry-run maintenance handoff";
       } else if (request.requireApproval) {
         queueApproval(request, ctx);
       } else {
-        dispatchHandoff(pi, request);
-        heartbeatState.lastOutcome = "queued edit-enabled maintenance handoff";
+        const sent = dispatchHandoff(pi, request);
+        heartbeatState.lastOutcome = sent
+          ? "queued edit-enabled maintenance handoff"
+          : "degraded: unable to dispatch edit-enabled maintenance handoff";
       }
     } else if (action === "summarize") {
       heartbeatState.lastOutcome = `observed workspace activity: ${reason}`;
@@ -864,8 +981,10 @@ function applyApprovalDecision(pi: ExtensionAPI, ctx: any, decision: ApprovalDec
   heartbeatState.pendingApproval = null;
 
   if (decision === "approved") {
-    dispatchHandoff(pi, pending.request);
-    heartbeatState.lastOutcome = `approved and dispatched cycle ${pending.cycle}`;
+    const sent = dispatchHandoff(pi, pending.request);
+    heartbeatState.lastOutcome = sent
+      ? `approved and dispatched cycle ${pending.cycle}`
+      : `approved but dispatch failed for cycle ${pending.cycle}`;
     addHistory("maintenance-pass", "approval", heartbeatState.lastOutcome, decision);
   } else if (decision === "deferred") {
     heartbeatState.lastOutcome = `deferred cycle ${pending.cycle}`;
@@ -882,7 +1001,7 @@ function applyApprovalDecision(pi: ExtensionAPI, ctx: any, decision: ApprovalDec
 }
 
 function ingestTurnStartParseSignals(pi: ExtensionAPI, ctx: any): void {
-  const entries = ctx?.sessionManager?.getEntries?.() ?? [];
+  const entries = getSessionEntries(ctx, "ingestTurnStartParseSignals");
   const recentEntries = entries.slice(-20);
   const recentText = recentEntries.map((entry: any) => summarizeText(entry)).join("\n");
 
@@ -923,7 +1042,7 @@ function ingestTurnStartParseSignals(pi: ExtensionAPI, ctx: any): void {
 }
 
 function registerSignalProbeCommands(pi: ExtensionAPI): void {
-  pi.registerCommand("heartbeat-signal-ttl", {
+  registerHeartbeatCommand(pi, "heartbeat-signal-ttl", {
     description: "Set signal snapshot cache TTL in seconds: /heartbeat-signal-ttl 120",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -941,7 +1060,7 @@ function registerSignalProbeCommands(pi: ExtensionAPI): void {
     },
   });
 
-  pi.registerCommand("heartbeat-probe-ttl", {
+  registerHeartbeatCommand(pi, "heartbeat-probe-ttl", {
     description: "Set external signal probe TTL in seconds: /heartbeat-probe-ttl 300",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -958,12 +1077,18 @@ function registerSignalProbeCommands(pi: ExtensionAPI): void {
     },
   });
 
-  pi.registerCommand("heartbeat-probe-now", {
+  registerHeartbeatCommand(pi, "heartbeat-probe-now", {
     description: "Request an immediate structured diagnostics/test/git probe",
     handler: async (_args, ctx) => {
       activeContext = ctx;
-      requestSignalProbe(pi);
-      notify(ctx, "heartbeat requested signal probe; waiting for HEARTBEAT_SIGNAL_SNAPSHOT response", "info");
+      const requested = requestSignalProbe(pi);
+      notify(
+        ctx,
+        requested
+          ? "heartbeat requested signal probe; waiting for HEARTBEAT_SIGNAL_SNAPSHOT response"
+          : "heartbeat degraded: unable to request signal probe",
+        requested ? "info" : "warning",
+      );
     },
   });
 }
@@ -983,7 +1108,7 @@ export default function (pi: ExtensionAPI) {
     updateStatus(ctx);
   });
 
-  pi.registerCommand("heartbeat", {
+  registerHeartbeatCommand(pi, "heartbeat", {
     description: "Show heartbeat agent status",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -992,7 +1117,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-start", {
+  registerHeartbeatCommand(pi, "heartbeat-start", {
     description: "Start the heartbeat loop: /heartbeat-start [intervalSeconds]",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -1007,7 +1132,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-stop", {
+  registerHeartbeatCommand(pi, "heartbeat-stop", {
     description: "Stop the heartbeat loop",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -1020,7 +1145,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-pause", {
+  registerHeartbeatCommand(pi, "heartbeat-pause", {
     description: "Pause the heartbeat loop",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -1032,7 +1157,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-resume", {
+  registerHeartbeatCommand(pi, "heartbeat-resume", {
     description: "Resume the heartbeat loop",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -1045,7 +1170,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-run-once", {
+  registerHeartbeatCommand(pi, "heartbeat-run-once", {
     description: "Run one heartbeat cycle immediately",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -1054,7 +1179,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-interval", {
+  registerHeartbeatCommand(pi, "heartbeat-interval", {
     description: "Set the heartbeat interval in seconds: /heartbeat-interval 300",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -1074,7 +1199,7 @@ export default function (pi: ExtensionAPI) {
 
   registerSignalProbeCommands(pi);
 
-  pi.registerCommand("heartbeat-approval-timeout", {
+  registerHeartbeatCommand(pi, "heartbeat-approval-timeout", {
     description: "Set approval timeout in seconds: /heartbeat-approval-timeout 3600",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -1091,7 +1216,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-focus", {
+  registerHeartbeatCommand(pi, "heartbeat-focus", {
     description: "Set the heartbeat maintenance focus text",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -1108,7 +1233,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-dry-run", {
+  registerHeartbeatCommand(pi, "heartbeat-dry-run", {
     description: "Toggle dry-run mode: /heartbeat-dry-run on|off",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -1125,7 +1250,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-edit", {
+  registerHeartbeatCommand(pi, "heartbeat-edit", {
     description: "Toggle edit-capable heartbeat behavior: /heartbeat-edit on|off",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -1142,7 +1267,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-approval", {
+  registerHeartbeatCommand(pi, "heartbeat-approval", {
     description: "Toggle approval gate for edit-capable cycles: /heartbeat-approval on|off",
     handler: async (args, ctx) => {
       activeContext = ctx;
@@ -1159,7 +1284,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-pending", {
+  registerHeartbeatCommand(pi, "heartbeat-pending", {
     description: "Show pending approval details",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -1177,7 +1302,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-approve", {
+  registerHeartbeatCommand(pi, "heartbeat-approve", {
     description: "Approve pending edit-capable maintenance objective",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -1186,7 +1311,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-defer", {
+  registerHeartbeatCommand(pi, "heartbeat-defer", {
     description: "Defer pending edit-capable maintenance objective",
     handler: async (_args, ctx) => {
       activeContext = ctx;
@@ -1195,7 +1320,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-reject", {
+  registerHeartbeatCommand(pi, "heartbeat-reject", {
     description: "Reject pending edit-capable maintenance objective",
     handler: async (_args, ctx) => {
       activeContext = ctx;

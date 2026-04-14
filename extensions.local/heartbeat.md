@@ -11,6 +11,23 @@ Run a supervised heartbeat loop inside the extension host so the agent can obser
 5. Repeated failures increase backoff and can automatically disable the loop.
 6. Edit-capable cycles can be approval-gated so implementation handoff is blocked until operator approval.
 
+## Extension API Assumptions And Fallbacks
+The current implementation assumes these host APIs may be partial or unavailable and degrades without crashing scheduler, cycle execution, or turn_start parsing.
+
+| API surface | Primary usage | Fallback when unavailable/failing | Observability |
+| --- | --- | --- | --- |
+| ctx.sessionManager.getEntries | restore state, collect typed signals, turn_start parsing | use empty entry list and continue cycle/parse logic | degraded marker appended to lastOutcome when possible |
+| ctx.ui.notify | user-facing command and lifecycle notices | no-op; state machine continues | degraded marker appended to lastOutcome |
+| ctx.ui.setStatus | heartbeat status indicator | no-op; scheduler and commands continue | degraded marker appended to lastOutcome |
+| pi.registerCommand | command registration at startup | skip command registration that failed and continue initialization | degraded marker appended to lastOutcome |
+| pi.appendEntry | persisted heartbeat state/history snapshots | skip persistence write and continue with in-memory state | degraded marker appended to lastOutcome |
+| pi.sendUserMessage | maintenance/probe steer handoff dispatch | keep cycle non-fatal and mark dispatch as degraded outcome | lastOutcome explicitly reports dispatch failure |
+
+Notes:
+1. Behavior is unchanged when the APIs are available.
+2. Parser failures in turn_start remain best-effort and non-fatal.
+3. Fallback paths are intentionally minimal and intent-preserving.
+
 ## State Model
 - enabled: whether scheduling is active
 - paused: whether timers are suspended while state remains enabled
@@ -117,3 +134,4 @@ The first implementation uses session-entry heuristics because that capability a
 ## Oracle Checks
 - Parser oracle: `node extensions.local/test-oracles/validate-output-parsers.js`
 - Approval lifecycle oracle: `node extensions.local/test-oracles/validate-heartbeat-lifecycle.js`
+- API capability oracle: `node extensions.local/test-oracles/validate-api-capabilities.js`

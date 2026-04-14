@@ -1,0 +1,84 @@
+{
+  "scenarios": [
+    {
+      "name": "baseline-all-apis-available",
+      "missing": [],
+      "seedEntries": [
+        { "type": "user", "text": "test failure in src/app.ts" },
+        { "type": "assistant", "text": "diagnostic error reported" }
+      ],
+      "commands": ["heartbeat-start", "heartbeat-run-once", "heartbeat"],
+      "expect": {
+        "shouldRegisterCommands": true,
+        "shouldPersist": true,
+        "statusCountMin": 1,
+        "notificationIncludes": ["enabled=true"]
+      }
+    },
+    {
+      "name": "missing-session-getEntries-does-not-crash",
+      "missing": ["ctx.sessionManager.getEntries"],
+      "seedEntries": [
+        { "type": "user", "text": "error in src/model.ts" }
+      ],
+      "commands": ["heartbeat-start", "heartbeat-run-once", "heartbeat"],
+      "expect": {
+        "shouldRegisterCommands": true,
+        "shouldPersist": true,
+        "statusCountMin": 1,
+        "notificationIncludes": ["enabled=true"]
+      }
+    },
+    {
+      "name": "missing-ui-methods-do-not-crash",
+      "missing": ["ctx.ui.notify", "ctx.ui.setStatus"],
+      "seedEntries": [],
+      "commands": ["heartbeat-start", "heartbeat-run-once", "heartbeat"],
+      "expect": {
+        "shouldRegisterCommands": true,
+        "shouldPersist": true,
+        "statusCountMin": 0,
+        "notificationIncludes": []
+      }
+    },
+    {
+      "name": "missing-registerCommand-still-initializes",
+      "missing": ["pi.registerCommand"],
+      "seedEntries": [],
+      "commands": [],
+      "expect": {
+        "shouldRegisterCommands": false,
+        "shouldPersist": false,
+        "statusCountMin": 1,
+        "notificationIncludes": []
+      }
+    },
+    {
+      "name": "missing-appendEntry-is-non-fatal-and-observable",
+      "missing": ["pi.appendEntry"],
+      "seedEntries": [],
+      "commands": ["heartbeat-start", "heartbeat"],
+      "expect": {
+        "shouldRegisterCommands": true,
+        "shouldPersist": false,
+        "statusCountMin": 1,
+        "notificationIncludes": ["pi.appendEntry unavailable"]
+      }
+    },
+    {
+      "name": "missing-sendUserMessage-degrades-handoff",
+      "missing": ["pi.sendUserMessage"],
+      "seedEntries": [
+        { "type": "user", "text": "diagnostic error failed test in src/train.py" },
+        { "type": "assistant", "text": "problem traceback failure" }
+      ],
+      "commands": ["heartbeat-start", "heartbeat-run-once", "heartbeat"],
+      "expect": {
+        "shouldRegisterCommands": true,
+        "shouldPersist": true,
+        "statusCountMin": 1,
+        "notificationIncludes": ["unable to dispatch dry-run maintenance handoff"]
+      }
+    }
+  ]
+}
