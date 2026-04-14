@@ -80,6 +80,12 @@ type PendingApproval = {
   expiresAt: string;
 };
 
+type ApprovalApplyResult = {
+  applied: boolean;
+  level: "info" | "warning";
+  notification: string;
+};
+
 type OrchestratorAuditMetadata = {
   status?: "passed" | "failed" | null;
   verdict?: string | null;
@@ -294,6 +300,37 @@ function cloneDefaultState(): HeartbeatState {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function summarizeObjective(text: string, maxLength: number = 140): string {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "n/a";
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function formatSecondsRemaining(expiresAt: string): string {
+  const expiresAtMs = new Date(expiresAt).getTime();
+  if (!Number.isFinite(expiresAtMs)) return "unknown";
+
+  const remainingSeconds = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+  const hours = Math.floor(remainingSeconds / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+  const seconds = remainingSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function formatPendingApprovalMessage(pending: PendingApproval): string {
+  return [
+    `pending cycle=${pending.cycle}`,
+    `risk=${pending.riskLevel}`,
+    `expiresIn=${formatSecondsRemaining(pending.expiresAt)}`,
+    `objective=${summarizeObjective(pending.objective)}`,
+    "actions=/heartbeat-approve | /heartbeat-defer | /heartbeat-reject",
+  ].join(" ");
 }
 
 function toDate(value: string | null): Date | null {
@@ -980,11 +1017,7 @@ function queueApproval(request: HeartbeatRequestEnvelope, ctx: any): void {
   heartbeatState.lastOutcome = `awaiting approval for cycle ${request.cycle}`;
   addHistory("awaiting-approval", request.trigger, heartbeatState.lastOutcome);
 
-  notify(
-    ctx,
-    `heartbeat pending approval cycle=${request.cycle}. Use /heartbeat-approve, /heartbeat-defer, or /heartbeat-reject.`,
-    "info",
-  );
+  notify(ctx, formatPendingApprovalMessage(heartbeatState.pendingApproval), "info");
 }
 
 function dispatchHandoff(pi: ExtensionAPI, request: HeartbeatRequestEnvelope): boolean {
@@ -1176,10 +1209,13 @@ function parseToggleArg(args: string, current: boolean): boolean | null {
   return null;
 }
 
-function applyApprovalDecision(pi: ExtensionAPI, ctx: any, decision: ApprovalDecision): void {
+function applyApprovalDecision(pi: ExtensionAPI, _ctx: any, decision: ApprovalDecision): ApprovalApplyResult {
   if (!heartbeatState.pendingApproval) {
-    notify(ctx, "No pending heartbeat approval.", "warning");
-    return;
+    return {
+      applied: false,
+      level: "warning",
+      notification: "No pending heartbeat approval.",
+    };
   }
 
   const pending = heartbeatState.pendingApproval;
@@ -1192,6 +1228,19 @@ function applyApprovalDecision(pi: ExtensionAPI, ctx: any, decision: ApprovalDec
       ? `approved and dispatched cycle ${pending.cycle}`
       : `approved but dispatch failed for cycle ${pending.cycle}`;
     addHistory("maintenance-pass", "approval", heartbeatState.lastOutcome, decision);
+
+    heartbeatState.consecutiveFailures = 0;
+    heartbeatState.backoffLevel = 0;
+    persistState(pi);
+    updateStatus(activeContext);
+
+    return {
+      applied: true,
+      level: sent ? "info" : "warning",
+      notification: sent
+        ? `heartbeat approval applied: approved cycle=${pending.cycle}`
+        : `heartbeat approval applied but dispatch failed cycle=${pending.cycle}`,
+    };
   } else if (decision === "deferred") {
     heartbeatState.lastOutcome = `deferred cycle ${pending.cycle}`;
     addHistory("awaiting-approval", "approval", heartbeatState.lastOutcome, decision);
@@ -1203,7 +1252,13 @@ function applyApprovalDecision(pi: ExtensionAPI, ctx: any, decision: ApprovalDec
   heartbeatState.consecutiveFailures = 0;
   heartbeatState.backoffLevel = 0;
   persistState(pi);
-  updateStatus(ctx);
+  updateStatus(activeContext);
+
+  return {
+    applied: true,
+    level: "info",
+    notification: `heartbeat approval applied: ${decision} cycle=${pending.cycle}`,
+  };
 }
 
 function ingestTurnStartParseSignals(pi: ExtensionAPI, ctx: any): void {
@@ -1516,11 +1571,7 @@ function registerApprovalCommands(pi: ExtensionAPI): void {
       }
 
       const pending = heartbeatState.pendingApproval;
-      notify(
-        ctx,
-        `pending cycle=${pending.cycle} risk=${pending.riskLevel} expiresAt=${pending.expiresAt} objective=${pending.objective}`,
-        "info",
-      );
+      notify(ctx, formatPendingApprovalMessage(pending), "info");
     },
   });
 
@@ -1528,8 +1579,8 @@ function registerApprovalCommands(pi: ExtensionAPI): void {
     description: "Approve pending edit-capable maintenance objective",
     handler: async (_args, ctx) => {
       activeContext = ctx;
-      applyApprovalDecision(pi, ctx, "approved");
-      notify(ctx, "heartbeat approval applied: approved", "info");
+      const result = applyApprovalDecision(pi, ctx, "approved");
+      notify(ctx, result.notification, result.level);
     },
   });
 
@@ -1537,8 +1588,8 @@ function registerApprovalCommands(pi: ExtensionAPI): void {
     description: "Defer pending edit-capable maintenance objective",
     handler: async (_args, ctx) => {
       activeContext = ctx;
-      applyApprovalDecision(pi, ctx, "deferred");
-      notify(ctx, "heartbeat approval applied: deferred", "info");
+      const result = applyApprovalDecision(pi, ctx, "deferred");
+      notify(ctx, result.notification, result.level);
     },
   });
 
@@ -1546,8 +1597,8 @@ function registerApprovalCommands(pi: ExtensionAPI): void {
     description: "Reject pending edit-capable maintenance objective",
     handler: async (_args, ctx) => {
       activeContext = ctx;
-      applyApprovalDecision(pi, ctx, "rejected");
-      notify(ctx, "heartbeat approval applied: rejected", "info");
+      const result = applyApprovalDecision(pi, ctx, "rejected");
+      notify(ctx, result.notification, result.level);
     },
   });
 }

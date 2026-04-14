@@ -114,6 +114,8 @@ If a signal is unavailable, set available=false and provide zero/null values.
 ## Current Implementation Scope
 The implementation uses a bounded signal precedence chain: direct adapter extraction from session/runtime payloads, then external probe snapshots, then session heuristics fallback. It can start, stop, pause, resume, run once, change interval, and queue maintenance steer messages.
 
+Approval UX currently includes command-driven review details with explicit risk, time-to-expiry, objective summary, and one-step action hints for approve, defer, and reject.
+
 ## Commands
 - /heartbeat
 - /heartbeat-start [seconds]
