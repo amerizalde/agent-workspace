@@ -1,0 +1,62 @@
+name: Quality Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  iterative-visual-loop-quality:
+    name: iterative-visual-loop Test and Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: iterative-visual-loop
+        run: npm install
+
+      - name: Run tests
+        working-directory: iterative-visual-loop
+        run: npm run test:run
+
+      - name: Run build
+        working-directory: iterative-visual-loop
+        run: npm run build
+
+  extensions-local-oracle-checks:
+    name: extensions.local Oracle Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run oracle validators
+        run: |
+          node extensions.local/test-oracles/validate-api-capabilities.js
+          node extensions.local/test-oracles/validate-heartbeat-lifecycle.js
+          node extensions.local/test-oracles/validate-heartbeat-lifecycle-enrichment.js
+          node extensions.local/test-oracles/validate-output-parsers.js
+          node extensions.local/test-oracles/validate-policy-discriminator-oracle.js
+          node extensions.local/test-oracles/validate-signal-adapters.js
+          node extensions.local/test-oracles/validate-state-schema-recovery.js
