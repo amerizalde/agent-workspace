@@ -1,0 +1,135 @@
+{
+  "heartbeat": {
+    "legacyUnversionedRestore": {
+      "entries": [
+        {
+          "type": "custom",
+          "customType": "heartbeat-agent-state",
+          "data": {
+            "enabled": true,
+            "paused": false,
+            "intervalSeconds": 180,
+            "cycle": 7,
+            "lastAction": "summarize",
+            "lastOutcome": "legacy recovered"
+          }
+        }
+      ],
+      "expectedStatusIncludes": [
+        "enabled=true",
+        "intervalSeconds=180",
+        "cycle=7",
+        "lastAction=summarize"
+      ]
+    },
+    "malformedEntryFallback": {
+      "entries": [
+        {
+          "type": "custom",
+          "customType": "heartbeat-agent-state",
+          "data": "not-an-object"
+        }
+      ],
+      "expectedStatusIncludes": [
+        "enabled=false",
+        "intervalSeconds=300",
+        "cycle=0",
+        "lastAction=idle"
+      ]
+    },
+    "mixedEntriesDeterministicRecovery": {
+      "entries": [
+        {
+          "type": "custom",
+          "customType": "heartbeat-agent-state",
+          "data": 42
+        },
+        {
+          "type": "custom",
+          "customType": "heartbeat-agent-state",
+          "data": {
+            "enabled": true,
+            "intervalSeconds": 222,
+            "cycle": 3
+          }
+        },
+        {
+          "type": "custom",
+          "customType": "heartbeat-agent-state",
+          "data": {
+            "schemaVersion": 1,
+            "paused": true,
+            "cycle": 9
+          }
+        }
+      ],
+      "expectedStatusIncludes": [
+        "enabled=true",
+        "paused=true",
+        "intervalSeconds=222",
+        "cycle=9"
+      ]
+    }
+  },
+  "coderPolicy": {
+    "legacyUnversionedRestore": {
+      "entries": [
+        {
+          "type": "custom",
+          "customType": "coder-policy-state",
+          "data": {
+            "strictMode": false,
+            "autoRepair": true
+          }
+        }
+      ],
+      "expectedStatusIncludes": [
+        "strict=false",
+        "autoRepair=true"
+      ]
+    },
+    "malformedEntryFallback": {
+      "entries": [
+        {
+          "type": "custom",
+          "customType": "coder-policy-state",
+          "data": [
+            "bad"
+          ]
+        }
+      ],
+      "expectedStatusIncludes": [
+        "strict=true",
+        "autoRepair=true"
+      ]
+    },
+    "mixedEntriesDeterministicRecovery": {
+      "entries": [
+        {
+          "type": "custom",
+          "customType": "coder-policy-state",
+          "data": "broken"
+        },
+        {
+          "type": "custom",
+          "customType": "coder-policy-state",
+          "data": {
+            "strictMode": false
+          }
+        },
+        {
+          "type": "custom",
+          "customType": "coder-policy-state",
+          "data": {
+            "schemaVersion": 1,
+            "autoRepair": false
+          }
+        }
+      ],
+      "expectedStatusIncludes": [
+        "strict=false",
+        "autoRepair=false"
+      ]
+    }
+  }
+}

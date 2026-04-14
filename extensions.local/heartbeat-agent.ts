@@ -132,6 +132,7 @@ type HeartbeatState = {
 };
 
 const STATE_ENTRY_TYPE = "heartbeat-agent-state";
+const STATE_SCHEMA_VERSION = 1;
 const STATUS_ID = "heartbeat-agent";
 const DEFAULT_STATE: HeartbeatState = {
   enabled: false,
@@ -327,6 +328,71 @@ function clampApprovalTimeout(seconds: number): number {
   return Math.max(60, Math.min(86_400, Math.floor(seconds)));
 }
 
+function clampOptionalNumber(
+  value: unknown,
+  fallback: number,
+  clamp: (seconds: number) => number,
+): number {
+  return typeof value === "number" && Number.isFinite(value) ? clamp(value) : fallback;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function clampRangeInt(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function asHeartbeatAction(value: unknown, fallback: HeartbeatActionName): HeartbeatActionName {
+  return value === "idle" || value === "summarize" || value === "maintenance-pass" || value === "awaiting-approval"
+    ? value
+    : fallback;
+}
+
+function asApprovalDecision(value: unknown, fallback: ApprovalDecision | null): ApprovalDecision | null {
+  return value === "approved" || value === "deferred" || value === "rejected" ? value : fallback;
+}
+
+function normalizeHistoryEntries(value: unknown, maxHistory: number): HeartbeatHistoryEntry[] {
+  if (!Array.isArray(value)) return [];
+
+  const normalized = value
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) return null;
+
+      const cycle = clampRangeInt(record.cycle, 0, Number.MAX_SAFE_INTEGER, 0);
+      const trigger = typeof record.trigger === "string" ? record.trigger : "unknown";
+      const action = asHeartbeatAction(record.action, "idle");
+      const outcome = typeof record.outcome === "string" ? record.outcome : "unknown";
+      const at = typeof record.at === "string" ? record.at : nowIso();
+      const approvalDecision = asApprovalDecision(record.approvalDecision, null) ?? undefined;
+
+      const historyEntry: HeartbeatHistoryEntry = {
+        cycle,
+        trigger,
+        action,
+        outcome,
+        at,
+      };
+
+      if (approvalDecision) historyEntry.approvalDecision = approvalDecision;
+
+      const orchestratorAudit = asRecord(record.orchestratorAudit);
+      if (orchestratorAudit) {
+        historyEntry.orchestratorAudit = normalizeOrchestratorAudit(orchestratorAudit);
+      }
+
+      return historyEntry;
+    })
+    .filter((item): item is HeartbeatHistoryEntry => Boolean(item));
+
+  return normalized.slice(-maxHistory);
+}
+
 function readPersistedState(ctx: any): HeartbeatState {
   const restored = cloneDefaultState();
   const entries = getSessionEntries(ctx, "readPersistedState");
@@ -335,16 +401,24 @@ function readPersistedState(ctx: any): HeartbeatState {
     if (entry?.type !== "custom") continue;
     if (entry?.customType !== STATE_ENTRY_TYPE) continue;
 
-    const data = entry?.data ?? {};
+    const data = asRecord(entry?.data);
+    if (!data) continue;
+
+    const schemaVersion = typeof data.schemaVersion === "number" && Number.isFinite(data.schemaVersion)
+      ? Math.floor(data.schemaVersion)
+      : null;
+    const isLegacy = schemaVersion === null;
+    if (!isLegacy && schemaVersion !== STATE_SCHEMA_VERSION) continue;
+
     restored.enabled = typeof data.enabled === "boolean" ? data.enabled : restored.enabled;
     restored.paused = typeof data.paused === "boolean" ? data.paused : restored.paused;
     restored.dryRun = typeof data.dryRun === "boolean" ? data.dryRun : restored.dryRun;
     restored.editEnabled = typeof data.editEnabled === "boolean" ? data.editEnabled : restored.editEnabled;
     restored.requireApproval = typeof data.requireApproval === "boolean" ? data.requireApproval : restored.requireApproval;
-    restored.intervalSeconds = clampInterval(data.intervalSeconds);
-    restored.cycle = typeof data.cycle === "number" ? data.cycle : restored.cycle;
+    restored.intervalSeconds = clampOptionalNumber(data.intervalSeconds, restored.intervalSeconds, clampInterval);
+    restored.cycle = clampRangeInt(data.cycle, 0, Number.MAX_SAFE_INTEGER, restored.cycle);
     restored.lastRunAt = typeof data.lastRunAt === "string" ? data.lastRunAt : restored.lastRunAt;
-    restored.lastAction = typeof data.lastAction === "string" ? data.lastAction : restored.lastAction;
+    restored.lastAction = asHeartbeatAction(data.lastAction, restored.lastAction);
     restored.lastOutcome = typeof data.lastOutcome === "string" ? data.lastOutcome : restored.lastOutcome;
     restored.focusPrompt = typeof data.focusPrompt === "string" && data.focusPrompt.trim()
       ? data.focusPrompt.trim()
@@ -355,9 +429,21 @@ function readPersistedState(ctx: any): HeartbeatState {
     restored.lastSignalFingerprint = typeof data.lastSignalFingerprint === "string"
       ? data.lastSignalFingerprint
       : restored.lastSignalFingerprint;
-    restored.signalCacheTtlSeconds = clampSignalTtl(data.signalCacheTtlSeconds);
-    restored.externalProbeTtlSeconds = clampExternalProbeTtl(data.externalProbeTtlSeconds);
-    restored.approvalTimeoutSeconds = clampApprovalTimeout(data.approvalTimeoutSeconds);
+    restored.signalCacheTtlSeconds = clampOptionalNumber(
+      data.signalCacheTtlSeconds,
+      restored.signalCacheTtlSeconds,
+      clampSignalTtl,
+    );
+    restored.externalProbeTtlSeconds = clampOptionalNumber(
+      data.externalProbeTtlSeconds,
+      restored.externalProbeTtlSeconds,
+      clampExternalProbeTtl,
+    );
+    restored.approvalTimeoutSeconds = clampOptionalNumber(
+      data.approvalTimeoutSeconds,
+      restored.approvalTimeoutSeconds,
+      clampApprovalTimeout,
+    );
     restored.lastSignals = data.lastSignals && typeof data.lastSignals === "object" ? data.lastSignals : restored.lastSignals;
     restored.lastExternalProbe = data.lastExternalProbe && typeof data.lastExternalProbe === "object"
       ? data.lastExternalProbe
@@ -365,21 +451,20 @@ function readPersistedState(ctx: any): HeartbeatState {
     restored.pendingApproval = data.pendingApproval && typeof data.pendingApproval === "object"
       ? data.pendingApproval
       : restored.pendingApproval;
-    restored.lastApprovalDecision = typeof data.lastApprovalDecision === "string"
-      ? data.lastApprovalDecision
-      : restored.lastApprovalDecision;
+    restored.lastApprovalDecision = asApprovalDecision(data.lastApprovalDecision, restored.lastApprovalDecision);
     restored.lastOrchestratorAudit = data.lastOrchestratorAudit && typeof data.lastOrchestratorAudit === "object"
       ? data.lastOrchestratorAudit
       : restored.lastOrchestratorAudit;
-    restored.consecutiveFailures = typeof data.consecutiveFailures === "number"
-      ? data.consecutiveFailures
-      : restored.consecutiveFailures;
-    restored.backoffLevel = typeof data.backoffLevel === "number" ? data.backoffLevel : restored.backoffLevel;
-    restored.maxConsecutiveFailures = typeof data.maxConsecutiveFailures === "number"
-      ? data.maxConsecutiveFailures
-      : restored.maxConsecutiveFailures;
-    restored.maxHistory = typeof data.maxHistory === "number" ? data.maxHistory : restored.maxHistory;
-    restored.history = Array.isArray(data.history) ? data.history.slice(-restored.maxHistory) : restored.history;
+    restored.consecutiveFailures = clampRangeInt(
+      data.consecutiveFailures,
+      0,
+      Number.MAX_SAFE_INTEGER,
+      restored.consecutiveFailures,
+    );
+    restored.backoffLevel = clampRangeInt(data.backoffLevel, 0, 5, restored.backoffLevel);
+    restored.maxConsecutiveFailures = clampRangeInt(data.maxConsecutiveFailures, 1, 10, restored.maxConsecutiveFailures);
+    restored.maxHistory = clampRangeInt(data.maxHistory, 1, 200, restored.maxHistory);
+    restored.history = normalizeHistoryEntries(data.history, restored.maxHistory);
   }
 
   return restored;
@@ -387,6 +472,7 @@ function readPersistedState(ctx: any): HeartbeatState {
 
 function persistState(pi: ExtensionAPI): void {
   appendStateEntry(pi, STATE_ENTRY_TYPE, {
+    schemaVersion: STATE_SCHEMA_VERSION,
     ...heartbeatState,
     history: heartbeatState.history.slice(-heartbeatState.maxHistory),
   });

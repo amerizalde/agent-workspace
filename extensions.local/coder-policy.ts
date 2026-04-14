@@ -12,7 +12,36 @@ const DEFAULT_STATE: PolicyState = {
 };
 
 const STATE_ENTRY_TYPE = "coder-policy-state";
+const STATE_SCHEMA_VERSION = 1;
 const STATUS_ID = "coder-policy";
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function normalizePolicyState(data: unknown, current: PolicyState): PolicyState {
+  const record = asRecord(data);
+  if (!record) return current;
+
+  const schemaVersion = typeof record.schemaVersion === "number" && Number.isFinite(record.schemaVersion)
+    ? Math.floor(record.schemaVersion)
+    : null;
+  const isLegacy = schemaVersion === null;
+  if (!isLegacy && schemaVersion !== STATE_SCHEMA_VERSION) return current;
+
+  return {
+    strictMode: typeof record.strictMode === "boolean" ? record.strictMode : current.strictMode,
+    autoRepair: typeof record.autoRepair === "boolean" ? record.autoRepair : current.autoRepair,
+  };
+}
+
+function persistPolicyState(pi: ExtensionAPI, state: PolicyState): void {
+  pi.appendEntry(STATE_ENTRY_TYPE, {
+    schemaVersion: STATE_SCHEMA_VERSION,
+    ...state,
+  });
+}
 
 function parseToggleArg(args: string, current: boolean): boolean | null {
   const normalized = (args || "").trim().toLowerCase();
@@ -97,11 +126,7 @@ export default function (pi: ExtensionAPI) {
       if (entry.type !== "custom") continue;
       if (entry.customType !== STATE_ENTRY_TYPE) continue;
 
-      const data = (entry.data ?? {}) as Partial<PolicyState>;
-      state = {
-        strictMode: typeof data.strictMode === "boolean" ? data.strictMode : state.strictMode,
-        autoRepair: typeof data.autoRepair === "boolean" ? data.autoRepair : state.autoRepair,
-      };
+      state = normalizePolicyState(entry.data, state);
     }
 
     updateStatus(ctx, state);
@@ -190,7 +215,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       state.strictMode = next;
-      pi.appendEntry(STATE_ENTRY_TYPE, state);
+      persistPolicyState(pi, state);
       updateStatus(ctx, state);
 
       if (ctx.hasUI) {
@@ -211,7 +236,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       state.autoRepair = next;
-      pi.appendEntry(STATE_ENTRY_TYPE, state);
+      persistPolicyState(pi, state);
       updateStatus(ctx, state);
 
       if (ctx.hasUI) {
