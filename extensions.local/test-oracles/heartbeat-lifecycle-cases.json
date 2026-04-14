@@ -1,0 +1,231 @@
+{
+  "approve": {
+    "name": "approve-dispatches-pending-request",
+    "decision": "approved",
+    "initialState": {
+      "cycle": 7,
+      "pendingApproval": {
+        "cycle": 7,
+        "fingerprint": "1:1:1:1:1:0",
+        "objective": "typed diagnostics or failure signals indicate actionable maintenance work",
+        "riskLevel": "medium",
+        "request": {
+          "cycle": 7,
+          "trigger": "manual",
+          "dryRun": false,
+          "editEnabled": true,
+          "requireApproval": true,
+          "focusPrompt": "Keep the workspace healthy with one bounded maintenance objective per cycle.",
+          "reason": "typed diagnostics or failure signals indicate actionable maintenance work",
+          "fingerprint": "1:1:1:1:1:0",
+          "signals": {
+            "collectedAt": "2026-04-13T00:00:00.000Z",
+            "sourceTier": "session-typed",
+            "recentEntryCount": 1,
+            "userEntryCount": 1,
+            "assistantEntryCount": 0,
+            "textualErrorCount": 1,
+            "failureMentionCount": 2,
+            "fileMentionCount": 1,
+            "diagnostics": { "available": true, "errorCount": 1, "warningCount": 0, "infoCount": 0 },
+            "tests": { "available": true, "failedCount": 1, "hasFailures": true },
+            "git": { "available": true, "isDirty": false, "stagedCount": 0, "unstagedCount": 0, "branch": "main" }
+          },
+          "allowedActions": ["noop", "recommendation", "planning-handoff", "implementation-handoff"]
+        },
+        "createdAt": "2026-04-13T00:00:00.000Z",
+        "expiresAt": "2099-04-13T01:00:00.000Z"
+      }
+    },
+    "expected": {
+      "lastApprovalDecision": "approved",
+      "pendingApproval": null,
+      "lastOutcomeIncludes": "approved and dispatched cycle 7",
+      "sendUserMessageCount": 1,
+      "historyAction": "maintenance-pass",
+      "historyApprovalDecision": "approved"
+    }
+  },
+  "defer": {
+    "name": "defer-keeps-request-undispatched",
+    "decision": "deferred",
+    "initialState": {
+      "cycle": 8,
+      "pendingApproval": {
+        "cycle": 8,
+        "fingerprint": "1:1:1:1:1:0",
+        "objective": "typed diagnostics or failure signals indicate actionable maintenance work",
+        "riskLevel": "medium",
+        "request": {
+          "cycle": 8,
+          "trigger": "manual",
+          "dryRun": false,
+          "editEnabled": true,
+          "requireApproval": true,
+          "focusPrompt": "Keep the workspace healthy with one bounded maintenance objective per cycle.",
+          "reason": "typed diagnostics or failure signals indicate actionable maintenance work",
+          "fingerprint": "1:1:1:1:1:0",
+          "signals": {
+            "collectedAt": "2026-04-13T00:00:00.000Z",
+            "sourceTier": "session-typed",
+            "recentEntryCount": 1,
+            "userEntryCount": 1,
+            "assistantEntryCount": 0,
+            "textualErrorCount": 1,
+            "failureMentionCount": 2,
+            "fileMentionCount": 1,
+            "diagnostics": { "available": true, "errorCount": 1, "warningCount": 0, "infoCount": 0 },
+            "tests": { "available": true, "failedCount": 1, "hasFailures": true },
+            "git": { "available": true, "isDirty": false, "stagedCount": 0, "unstagedCount": 0, "branch": "main" }
+          },
+          "allowedActions": ["noop", "recommendation", "planning-handoff", "implementation-handoff"]
+        },
+        "createdAt": "2026-04-13T00:00:00.000Z",
+        "expiresAt": "2099-04-13T01:00:00.000Z"
+      }
+    },
+    "expected": {
+      "lastApprovalDecision": "deferred",
+      "pendingApproval": null,
+      "lastOutcomeIncludes": "deferred cycle 8",
+      "sendUserMessageCount": 0,
+      "historyAction": "awaiting-approval",
+      "historyApprovalDecision": "deferred"
+    }
+  },
+  "reject": {
+    "name": "reject-cancels-request-undispatched",
+    "decision": "rejected",
+    "initialState": {
+      "cycle": 9,
+      "pendingApproval": {
+        "cycle": 9,
+        "fingerprint": "1:1:1:1:1:0",
+        "objective": "typed diagnostics or failure signals indicate actionable maintenance work",
+        "riskLevel": "high",
+        "request": {
+          "cycle": 9,
+          "trigger": "manual",
+          "dryRun": false,
+          "editEnabled": true,
+          "requireApproval": true,
+          "focusPrompt": "Keep the workspace healthy with one bounded maintenance objective per cycle.",
+          "reason": "typed diagnostics or failure signals indicate actionable maintenance work",
+          "fingerprint": "1:1:1:1:1:0",
+          "signals": {
+            "collectedAt": "2026-04-13T00:00:00.000Z",
+            "sourceTier": "session-typed",
+            "recentEntryCount": 1,
+            "userEntryCount": 1,
+            "assistantEntryCount": 0,
+            "textualErrorCount": 1,
+            "failureMentionCount": 2,
+            "fileMentionCount": 1,
+            "diagnostics": { "available": true, "errorCount": 3, "warningCount": 0, "infoCount": 0 },
+            "tests": { "available": true, "failedCount": 2, "hasFailures": true },
+            "git": { "available": true, "isDirty": false, "stagedCount": 0, "unstagedCount": 0, "branch": "main" }
+          },
+          "allowedActions": ["noop", "recommendation", "planning-handoff", "implementation-handoff"]
+        },
+        "createdAt": "2026-04-13T00:00:00.000Z",
+        "expiresAt": "2099-04-13T01:00:00.000Z"
+      }
+    },
+    "expected": {
+      "lastApprovalDecision": "rejected",
+      "pendingApproval": null,
+      "lastOutcomeIncludes": "rejected cycle 9",
+      "sendUserMessageCount": 0,
+      "historyAction": "awaiting-approval",
+      "historyApprovalDecision": "rejected"
+    }
+  },
+  "timeout": {
+    "name": "expired-pending-approval-times-out-on-next-cycle",
+    "initialState": {
+      "enabled": true,
+      "cycle": 10,
+      "pendingApproval": {
+        "cycle": 10,
+        "fingerprint": "1:1:1:1:1:0",
+        "objective": "typed diagnostics or failure signals indicate actionable maintenance work",
+        "riskLevel": "medium",
+        "request": {
+          "cycle": 10,
+          "trigger": "timer",
+          "dryRun": false,
+          "editEnabled": true,
+          "requireApproval": true,
+          "focusPrompt": "Keep the workspace healthy with one bounded maintenance objective per cycle.",
+          "reason": "typed diagnostics or failure signals indicate actionable maintenance work",
+          "fingerprint": "1:1:1:1:1:0",
+          "signals": {
+            "collectedAt": "2026-04-13T00:00:00.000Z",
+            "sourceTier": "session-typed",
+            "recentEntryCount": 1,
+            "userEntryCount": 1,
+            "assistantEntryCount": 0,
+            "textualErrorCount": 1,
+            "failureMentionCount": 2,
+            "fileMentionCount": 1,
+            "diagnostics": { "available": true, "errorCount": 1, "warningCount": 0, "infoCount": 0 },
+            "tests": { "available": true, "failedCount": 1, "hasFailures": true },
+            "git": { "available": true, "isDirty": false, "stagedCount": 0, "unstagedCount": 0, "branch": "main" }
+          },
+          "allowedActions": ["noop", "recommendation", "planning-handoff", "implementation-handoff"]
+        },
+        "createdAt": "2026-04-13T00:00:00.000Z",
+        "expiresAt": "2000-01-01T00:00:00.000Z"
+      }
+    },
+    "expected": {
+      "lastApprovalDecision": "deferred",
+      "pendingApproval": null,
+      "historyTrigger": "timeout",
+      "historyApprovalDecision": "deferred"
+    }
+  },
+  "reloadRecovery": {
+    "name": "pending-approval-restores-after-session-reload",
+    "initialState": {
+      "cycle": 11,
+      "pendingApproval": {
+        "cycle": 11,
+        "fingerprint": "1:1:1:1:1:0",
+        "objective": "typed diagnostics or failure signals indicate actionable maintenance work",
+        "riskLevel": "medium",
+        "request": {
+          "cycle": 11,
+          "trigger": "timer",
+          "dryRun": false,
+          "editEnabled": true,
+          "requireApproval": true,
+          "focusPrompt": "Keep the workspace healthy with one bounded maintenance objective per cycle.",
+          "reason": "typed diagnostics or failure signals indicate actionable maintenance work",
+          "fingerprint": "1:1:1:1:1:0",
+          "signals": {
+            "collectedAt": "2026-04-13T00:00:00.000Z",
+            "sourceTier": "session-typed",
+            "recentEntryCount": 1,
+            "userEntryCount": 1,
+            "assistantEntryCount": 0,
+            "textualErrorCount": 1,
+            "failureMentionCount": 2,
+            "fileMentionCount": 1,
+            "diagnostics": { "available": true, "errorCount": 1, "warningCount": 0, "infoCount": 0 },
+            "tests": { "available": true, "failedCount": 1, "hasFailures": true },
+            "git": { "available": true, "isDirty": false, "stagedCount": 0, "unstagedCount": 0, "branch": "main" }
+          },
+          "allowedActions": ["noop", "recommendation", "planning-handoff", "implementation-handoff"]
+        },
+        "createdAt": "2026-04-13T00:00:00.000Z",
+        "expiresAt": "2099-04-13T01:00:00.000Z"
+      }
+    },
+    "expected": {
+      "pendingCycle": 11,
+      "pendingNotifyIncludes": "pending cycle=11",
+      "pendingNotifyRiskIncludes": "risk=medium"
+    }
+  }
+}

@@ -73,6 +73,11 @@ If a signal is unavailable, set available=false and provide zero/null values.
 3. heartbeat-maintainer returns the structured cycle result contract.
 4. If the cycle is edit-capable and approved, implementation handoff must route through gen-disc-orchestrator.
 
+## Deterministic Parse Contracts
+1. heartbeat-maintainer output is parsed from required key-value lines: selected_objective, action_taken, outcome, and next_risk.
+2. policy-discriminator output is parsed from required key-value lines: verdict and confidence, with optional bullet lists for failed_checks and fix_directives.
+3. Parser failures are best-effort and non-fatal; they must not crash cycle scheduling.
+
 ## Safety Boundaries
 1. No recursive self-looping inside the delegated agent.
 2. No destructive git operations.
@@ -108,3 +113,7 @@ The first implementation uses session-entry heuristics because that capability a
 1. Typed signals are currently inferred from session entries unless an external probe marker is ingested.
 2. Structured handoff is dispatched as steer instructions; native runtime agent-call APIs can replace this when available.
 3. Approval gates currently use command-driven controls; richer UI approval workflows can be added later.
+
+## Oracle Checks
+- Parser oracle: `node extensions.local/test-oracles/validate-output-parsers.js`
+- Approval lifecycle oracle: `node extensions.local/test-oracles/validate-heartbeat-lifecycle.js`

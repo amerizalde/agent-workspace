@@ -1,0 +1,54 @@
+{
+  "heartbeat": {
+    "valid": [
+      {
+        "name": "noop-minimal-valid",
+        "text": "selected_objective: none\naction_taken: noop\noutcome: no actionable issue\nnext_risk: none\nconfidence: high\nhandoff_details: none"
+      },
+      {
+        "name": "handoff-valid",
+        "text": "selected_objective: Repair failing tests\naction_taken: implementation-handoff\noutcome: handoff queued to orchestrator\nnext_risk: flaky integration test\nconfidence: medium\nhandoff_details: gen-disc-orchestrator"
+      }
+    ],
+    "invalid": [
+      {
+        "name": "missing-required-field",
+        "text": "selected_objective: none\naction_taken: noop\noutcome: no actionable issue"
+      },
+      {
+        "name": "invalid-action",
+        "text": "selected_objective: none\naction_taken: execute\noutcome: did work\nnext_risk: none\nconfidence: high\nhandoff_details: none"
+      },
+      {
+        "name": "invalid-confidence",
+        "text": "selected_objective: none\naction_taken: noop\noutcome: no actionable issue\nnext_risk: none\nconfidence: certain\nhandoff_details: none"
+      }
+    ]
+  },
+  "policy": {
+    "valid": [
+      {
+        "name": "pass-valid",
+        "text": "verdict: PASS\nfailed_checks:\n- none\nfix_directives:\n- none\nconfidence: high"
+      },
+      {
+        "name": "fail-valid",
+        "text": "verdict: FAIL\nfailed_checks:\n- check_name: naming clarity\n- evidence: src/file.ts:42 uses tmp\nfix_directives:\n- Rename tmp to describe purpose\nconfidence: medium"
+      }
+    ],
+    "invalid": [
+      {
+        "name": "missing-confidence",
+        "text": "verdict: PASS\nfailed_checks:\n- none\nfix_directives:\n- none"
+      },
+      {
+        "name": "invalid-verdict",
+        "text": "verdict: MAYBE\nfailed_checks:\n- none\nfix_directives:\n- none\nconfidence: high"
+      },
+      {
+        "name": "invalid-confidence",
+        "text": "verdict: FAIL\nfailed_checks:\n- check_name: scope\nfix_directives:\n- keep scope tight\nconfidence: low"
+      }
+    ]
+  }
+}

@@ -48,3 +48,8 @@ Return exactly:
 4. next_risk: none or short risk statement
 5. confidence: high | medium | low
 6. handoff_details: none or short handoff target summary
+
+Deterministic formatting requirements:
+- Emit each required field exactly once on its own line as key: value.
+- Do not wrap required fields in code fences or JSON.
+- Keep action_taken and confidence values within the allowed enums above.

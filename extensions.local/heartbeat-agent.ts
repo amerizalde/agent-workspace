@@ -1,5 +1,11 @@
 // @ts-nocheck
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const {
+  parseHeartbeatMaintainerOutput,
+  parsePolicyDiscriminatorOutput,
+} = require("./output-parsers");
 
 type HeartbeatActionName = "idle" | "summarize" | "maintenance-pass" | "awaiting-approval";
 type ApprovalDecision = "approved" | "deferred" | "rejected";
@@ -185,19 +191,6 @@ function clampExternalProbeTtl(seconds: number): number {
 function clampApprovalTimeout(seconds: number): number {
   if (!Number.isFinite(seconds)) return DEFAULT_STATE.approvalTimeoutSeconds;
   return Math.max(60, Math.min(86_400, Math.floor(seconds)));
-}
-
-function parseStructuredResult(text: string): { actionTaken: string; objective: string; nextRisk: string } | null {
-  const actionMatch = /action_taken\s*:\s*([^\n]+)/i.exec(text);
-  const objectiveMatch = /selected_objective\s*:\s*([^\n]+)/i.exec(text);
-  const riskMatch = /next_risk\s*:\s*([^\n]+)/i.exec(text);
-  if (!actionMatch || !objectiveMatch || !riskMatch) return null;
-
-  return {
-    actionTaken: actionMatch[1].trim().toLowerCase(),
-    objective: objectiveMatch[1].trim(),
-    nextRisk: riskMatch[1].trim(),
-  };
 }
 
 function readPersistedState(ctx: any): HeartbeatState {
@@ -654,6 +647,8 @@ function buildMaintenancePrompt(request: HeartbeatRequestEnvelope): string {
     "action_taken:",
     "outcome:",
     "next_risk:",
+    "confidence:",
+    "handoff_details:",
     "If action_taken is implementation-handoff and mode allows edits, route using gen-disc-orchestrator only.",
     "Heartbeat request envelope follows as JSON:",
     JSON.stringify(request, null, 2),
@@ -886,6 +881,93 @@ function applyApprovalDecision(pi: ExtensionAPI, ctx: any, decision: ApprovalDec
   updateStatus(ctx);
 }
 
+function ingestTurnStartParseSignals(pi: ExtensionAPI, ctx: any): void {
+  const entries = ctx?.sessionManager?.getEntries?.() ?? [];
+  const recentEntries = entries.slice(-20);
+  const recentText = recentEntries.map((entry: any) => summarizeText(entry)).join("\n");
+
+  const probe = parseExternalProbe(recentEntries);
+  if (probe) {
+    heartbeatState.lastExternalProbe = probe;
+    heartbeatState.lastSignals = null;
+    heartbeatState.lastOutcome = `ingested external signal probe from ${probe.collectedAt}`;
+    persistState(pi);
+  }
+
+  const parsedStatuses: string[] = [];
+
+  try {
+    const maintainerResult = parseHeartbeatMaintainerOutput(recentText);
+    if (maintainerResult.ok) {
+      parsedStatuses.push(
+        `maintainer ${maintainerResult.data.actionTaken} (${maintainerResult.data.selectedObjective})`,
+      );
+    }
+  } catch {
+    // Best-effort parse only; failures must never break scheduling.
+  }
+
+  try {
+    const policyResult = parsePolicyDiscriminatorOutput(recentText);
+    if (policyResult.ok) {
+      parsedStatuses.push(`policy ${policyResult.data.verdict} (${policyResult.data.failedCheckCount} failed checks)`);
+    }
+  } catch {
+    // Best-effort parse only; failures must never break scheduling.
+  }
+
+  if (parsedStatuses.length > 0) {
+    heartbeatState.lastOutcome = parsedStatuses.join("; ");
+    persistState(pi);
+  }
+}
+
+function registerSignalProbeCommands(pi: ExtensionAPI): void {
+  pi.registerCommand("heartbeat-signal-ttl", {
+    description: "Set signal snapshot cache TTL in seconds: /heartbeat-signal-ttl 120",
+    handler: async (args, ctx) => {
+      activeContext = ctx;
+      const parsed = parseSecondsArg(args);
+      if (parsed === null) {
+        notify(ctx, "Usage: /heartbeat-signal-ttl <seconds>", "warning");
+        return;
+      }
+
+      heartbeatState.signalCacheTtlSeconds = clampSignalTtl(parsed);
+      heartbeatState.lastSignals = null;
+      persistState(pi);
+      updateStatus(ctx);
+      notify(ctx, `heartbeat signal cache ttl=${heartbeatState.signalCacheTtlSeconds}s`, "info");
+    },
+  });
+
+  pi.registerCommand("heartbeat-probe-ttl", {
+    description: "Set external signal probe TTL in seconds: /heartbeat-probe-ttl 300",
+    handler: async (args, ctx) => {
+      activeContext = ctx;
+      const parsed = parseSecondsArg(args);
+      if (parsed === null) {
+        notify(ctx, "Usage: /heartbeat-probe-ttl <seconds>", "warning");
+        return;
+      }
+
+      heartbeatState.externalProbeTtlSeconds = clampExternalProbeTtl(parsed);
+      persistState(pi);
+      updateStatus(ctx);
+      notify(ctx, `heartbeat probe ttl=${heartbeatState.externalProbeTtlSeconds}s`, "info");
+    },
+  });
+
+  pi.registerCommand("heartbeat-probe-now", {
+    description: "Request an immediate structured diagnostics/test/git probe",
+    handler: async (_args, ctx) => {
+      activeContext = ctx;
+      requestSignalProbe(pi);
+      notify(ctx, "heartbeat requested signal probe; waiting for HEARTBEAT_SIGNAL_SNAPSHOT response", "info");
+    },
+  });
+}
+
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     activeContext = ctx;
@@ -896,24 +978,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("turn_start", async (_event, ctx) => {
     activeContext = ctx;
-
-    const entries = ctx?.sessionManager?.getEntries?.() ?? [];
-    const recentEntries = entries.slice(-20);
-    const recentText = recentEntries.map((entry: any) => summarizeText(entry)).join("\n");
-
-    const probe = parseExternalProbe(recentEntries);
-    if (probe) {
-      heartbeatState.lastExternalProbe = probe;
-      heartbeatState.lastSignals = null;
-      heartbeatState.lastOutcome = `ingested external signal probe from ${probe.collectedAt}`;
-      persistState(pi);
-    }
-
-    const parsedResult = parseStructuredResult(recentText);
-    if (parsedResult) {
-      heartbeatState.lastOutcome = `maintainer result: ${parsedResult.actionTaken} (${parsedResult.objective})`;
-      persistState(pi);
-    }
+    ingestTurnStartParseSignals(pi, ctx);
 
     updateStatus(ctx);
   });
@@ -1007,49 +1072,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("heartbeat-signal-ttl", {
-    description: "Set signal snapshot cache TTL in seconds: /heartbeat-signal-ttl 120",
-    handler: async (args, ctx) => {
-      activeContext = ctx;
-      const parsed = parseSecondsArg(args);
-      if (parsed === null) {
-        notify(ctx, "Usage: /heartbeat-signal-ttl <seconds>", "warning");
-        return;
-      }
-
-      heartbeatState.signalCacheTtlSeconds = clampSignalTtl(parsed);
-      heartbeatState.lastSignals = null;
-      persistState(pi);
-      updateStatus(ctx);
-      notify(ctx, `heartbeat signal cache ttl=${heartbeatState.signalCacheTtlSeconds}s`, "info");
-    },
-  });
-
-  pi.registerCommand("heartbeat-probe-ttl", {
-    description: "Set external signal probe TTL in seconds: /heartbeat-probe-ttl 300",
-    handler: async (args, ctx) => {
-      activeContext = ctx;
-      const parsed = parseSecondsArg(args);
-      if (parsed === null) {
-        notify(ctx, "Usage: /heartbeat-probe-ttl <seconds>", "warning");
-        return;
-      }
-
-      heartbeatState.externalProbeTtlSeconds = clampExternalProbeTtl(parsed);
-      persistState(pi);
-      updateStatus(ctx);
-      notify(ctx, `heartbeat probe ttl=${heartbeatState.externalProbeTtlSeconds}s`, "info");
-    },
-  });
-
-  pi.registerCommand("heartbeat-probe-now", {
-    description: "Request an immediate structured diagnostics/test/git probe",
-    handler: async (_args, ctx) => {
-      activeContext = ctx;
-      requestSignalProbe(pi);
-      notify(ctx, "heartbeat requested signal probe; waiting for HEARTBEAT_SIGNAL_SNAPSHOT response", "info");
-    },
-  });
+  registerSignalProbeCommands(pi);
 
   pi.registerCommand("heartbeat-approval-timeout", {
     description: "Set approval timeout in seconds: /heartbeat-approval-timeout 3600",

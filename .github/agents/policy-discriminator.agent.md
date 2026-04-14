@@ -34,3 +34,8 @@ Return exactly:
 - fix_directives:
   - <single targeted directive>
 - confidence: high | medium
+
+Deterministic formatting requirements:
+- Emit verdict and confidence once as top-level key: value lines.
+- Keep failed_checks and fix_directives as plain bullet lists under their headers.
+- Do not wrap the contract in code fences or JSON.
