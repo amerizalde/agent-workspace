@@ -1,0 +1,31 @@
+{
+  "orchestratorEnrichment": {
+    "name": "turn-start-ingests-orchestrator-audit",
+    "initialState": {
+      "cycle": 12,
+      "lastAction": "maintenance-pass",
+      "history": [
+        {
+          "cycle": 12,
+          "trigger": "manual",
+          "action": "maintenance-pass",
+          "outcome": "queued edit-enabled maintenance handoff",
+          "at": "2026-04-13T00:00:00.000Z"
+        }
+      ]
+    },
+    "assistantEntry": {
+      "type": "assistant",
+      "text": "status: passed\nverdict: PASS\nattempts_used: 2\nfiles_touched:\n- extensions.local/heartbeat-agent.ts\n- extensions.local/output-parsers.js\npolicy_summary: policy gate passed after one targeted fix\nnext_action: done\nhandoff_target: none"
+    },
+    "expected": {
+      "status": "passed",
+      "verdict": "PASS",
+      "attemptsUsed": 2,
+      "retryCount": 1,
+      "filesTouchedIncludes": "extensions.local/heartbeat-agent.ts",
+      "policySummaryIncludes": "policy gate passed",
+      "nextAction": "done"
+    }
+  }
+}

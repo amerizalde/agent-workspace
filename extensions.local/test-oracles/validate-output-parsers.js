@@ -4,6 +4,7 @@ const path = require("node:path");
 const {
   parseHeartbeatMaintainerOutput,
   parsePolicyDiscriminatorOutput,
+  parseOrchestratorResultPayload,
 } = require("../output-parsers");
 const fixtures = require("./parser-cases.json");
 
@@ -30,6 +31,9 @@ function run() {
 
   validateCases(fixtures.policy.valid, parsePolicyDiscriminatorOutput, true, "policy.valid");
   validateCases(fixtures.policy.invalid, parsePolicyDiscriminatorOutput, false, "policy.invalid");
+
+  validateCases(fixtures.orchestrator.valid, parseOrchestratorResultPayload, true, "orchestrator.valid");
+  validateCases(fixtures.orchestrator.invalid, parseOrchestratorResultPayload, false, "orchestrator.invalid");
 
   const fixturePath = path.relative(process.cwd(), path.resolve(__dirname, "parser-cases.json"));
   console.log(`Parser oracle checks passed using ${fixturePath}`);

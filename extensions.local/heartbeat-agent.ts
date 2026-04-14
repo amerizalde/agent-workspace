@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   parseHeartbeatMaintainerOutput,
   parsePolicyDiscriminatorOutput,
+  parseOrchestratorResultPayload,
 } = require("./output-parsers");
 const {
   collectDirectSignalsFromPayload,
@@ -79,6 +80,18 @@ type PendingApproval = {
   expiresAt: string;
 };
 
+type OrchestratorAuditMetadata = {
+  status?: "passed" | "failed" | null;
+  verdict?: string | null;
+  attemptsUsed?: number | null;
+  retryCount?: number | null;
+  filesTouched?: string[];
+  policySummary?: string | null;
+  nextAction?: string | null;
+  handoffTarget?: string | null;
+  capturedAt: string;
+};
+
 type HeartbeatHistoryEntry = {
   cycle: number;
   trigger: string;
@@ -86,6 +99,7 @@ type HeartbeatHistoryEntry = {
   outcome: string;
   at: string;
   approvalDecision?: ApprovalDecision;
+  orchestratorAudit?: OrchestratorAuditMetadata;
 };
 
 type HeartbeatState = {
@@ -109,6 +123,7 @@ type HeartbeatState = {
   lastExternalProbe: ExternalSignalProbe | null;
   pendingApproval: PendingApproval | null;
   lastApprovalDecision: ApprovalDecision | null;
+  lastOrchestratorAudit: OrchestratorAuditMetadata | null;
   consecutiveFailures: number;
   backoffLevel: number;
   maxConsecutiveFailures: number;
@@ -139,6 +154,7 @@ const DEFAULT_STATE: HeartbeatState = {
   lastExternalProbe: null,
   pendingApproval: null,
   lastApprovalDecision: null,
+  lastOrchestratorAudit: null,
   consecutiveFailures: 0,
   backoffLevel: 0,
   maxConsecutiveFailures: 3,
@@ -271,6 +287,7 @@ function cloneDefaultState(): HeartbeatState {
     lastSignals: null,
     lastExternalProbe: null,
     pendingApproval: null,
+    lastOrchestratorAudit: null,
   };
 }
 
@@ -351,6 +368,9 @@ function readPersistedState(ctx: any): HeartbeatState {
     restored.lastApprovalDecision = typeof data.lastApprovalDecision === "string"
       ? data.lastApprovalDecision
       : restored.lastApprovalDecision;
+    restored.lastOrchestratorAudit = data.lastOrchestratorAudit && typeof data.lastOrchestratorAudit === "object"
+      ? data.lastOrchestratorAudit
+      : restored.lastOrchestratorAudit;
     restored.consecutiveFailures = typeof data.consecutiveFailures === "number"
       ? data.consecutiveFailures
       : restored.consecutiveFailures;
@@ -750,6 +770,36 @@ function addHistory(
   ].slice(-heartbeatState.maxHistory);
 }
 
+function normalizeOrchestratorAudit(payload: any): OrchestratorAuditMetadata {
+  return {
+    status: payload?.status === "passed" || payload?.status === "failed" ? payload.status : null,
+    verdict: typeof payload?.verdict === "string" ? payload.verdict : null,
+    attemptsUsed: typeof payload?.attemptsUsed === "number" ? payload.attemptsUsed : null,
+    retryCount: typeof payload?.retryCount === "number" ? payload.retryCount : null,
+    filesTouched: Array.isArray(payload?.filesTouched)
+      ? payload.filesTouched.filter((value: unknown) => typeof value === "string")
+      : [],
+    policySummary: typeof payload?.policySummary === "string" ? payload.policySummary : null,
+    nextAction: typeof payload?.nextAction === "string" ? payload.nextAction : null,
+    handoffTarget: typeof payload?.handoffTarget === "string" ? payload.handoffTarget : null,
+    capturedAt: nowIso(),
+  };
+}
+
+function attachOrchestratorAudit(audit: OrchestratorAuditMetadata): void {
+  heartbeatState.lastOrchestratorAudit = audit;
+  const historyTail = heartbeatState.history[heartbeatState.history.length - 1];
+  if (!historyTail) return;
+
+  heartbeatState.history = [
+    ...heartbeatState.history.slice(0, -1),
+    {
+      ...historyTail,
+      orchestratorAudit: audit,
+    },
+  ];
+}
+
 function buildHeartbeatRequest(signals: HeartbeatSignals, reason: string, trigger: string): HeartbeatRequestEnvelope {
   const allowedActions = heartbeatState.dryRun || !heartbeatState.editEnabled
     ? ["noop", "recommendation"]
@@ -874,26 +924,89 @@ function requestSignalProbe(pi: ExtensionAPI): boolean {
   return sendSteerMessage(pi, prompt, "request-signal-probe");
 }
 
+function canEnterHeartbeatCycle(trigger: string): boolean {
+  if (cycleInFlight) return false;
+  if (!heartbeatState.enabled && trigger !== "manual") return false;
+  if (heartbeatState.paused && trigger !== "manual") return false;
+  return true;
+}
+
+function resolveCycleAction(ctx: any): {
+  signals: HeartbeatSignals;
+  action: HeartbeatActionName;
+  reason: string;
+  fingerprint: string;
+} {
+  heartbeatState.cycle += 1;
+  heartbeatState.lastRunAt = nowIso();
+
+  const signals = collectTypedSignals(ctx);
+  const { action, reason } = selectAction(signals);
+  const fingerprint = buildIssueFingerprint(signals);
+
+  heartbeatState.lastSignalFingerprint = fingerprint;
+  heartbeatState.lastAction = action;
+
+  return {
+    signals,
+    action,
+    reason,
+    fingerprint,
+  };
+}
+
+function handleMaintenanceDispatch(
+  pi: ExtensionAPI,
+  ctx: any,
+  trigger: string,
+  signals: HeartbeatSignals,
+  reason: string,
+  fingerprint: string,
+): void {
+  const request = buildHeartbeatRequest(signals, reason, trigger);
+  heartbeatState.recentIssueFingerprint = fingerprint;
+
+  if (request.dryRun || !request.editEnabled) {
+    const sent = dispatchHandoff(pi, request);
+    heartbeatState.lastOutcome = sent
+      ? "queued dry-run maintenance handoff"
+      : "degraded: unable to dispatch dry-run maintenance handoff";
+    return;
+  }
+
+  if (request.requireApproval) {
+    queueApproval(request, ctx);
+    return;
+  }
+
+  const sent = dispatchHandoff(pi, request);
+  heartbeatState.lastOutcome = sent
+    ? "queued edit-enabled maintenance handoff"
+    : "degraded: unable to dispatch edit-enabled maintenance handoff";
+}
+
+function persistCycleSuccess(pi: ExtensionAPI, ctx: any, action: HeartbeatActionName, trigger: string): void {
+  heartbeatState.consecutiveFailures = 0;
+  heartbeatState.backoffLevel = 0;
+  addHistory(action, trigger, heartbeatState.lastOutcome);
+  persistState(pi);
+  updateStatus(ctx);
+}
+
+function finalizeCycleScheduling(pi: ExtensionAPI): void {
+  cycleInFlight = false;
+  scheduleNextBeat(pi);
+}
+
 async function runHeartbeatCycle(pi: ExtensionAPI, ctx: any, trigger: string): Promise<void> {
-  if (cycleInFlight) return;
-  if (!heartbeatState.enabled && trigger !== "manual") return;
-  if (heartbeatState.paused && trigger !== "manual") return;
+  if (!canEnterHeartbeatCycle(trigger)) return;
 
   cycleInFlight = true;
   activeContext = ctx;
 
   try {
     handlePendingApprovalTimeout();
-
-    heartbeatState.cycle += 1;
-    heartbeatState.lastRunAt = nowIso();
-
-    const signals = collectTypedSignals(ctx);
-    const { action, reason } = selectAction(signals);
-    const fingerprint = buildIssueFingerprint(signals);
-
-    heartbeatState.lastSignalFingerprint = fingerprint;
-    heartbeatState.lastAction = action;
+    const { signals, action, reason, fingerprint } = resolveCycleAction(ctx);
 
     if (heartbeatState.pendingApproval && !pendingApprovalExpired()) {
       heartbeatState.lastOutcome = `pending approval active for cycle ${heartbeatState.pendingApproval.cycle}`;
@@ -916,22 +1029,7 @@ async function runHeartbeatCycle(pi: ExtensionAPI, ctx: any, trigger: string): P
     }
 
     if (action === "maintenance-pass") {
-      const request = buildHeartbeatRequest(signals, reason, trigger);
-      heartbeatState.recentIssueFingerprint = fingerprint;
-
-      if (request.dryRun || !request.editEnabled) {
-        const sent = dispatchHandoff(pi, request);
-        heartbeatState.lastOutcome = sent
-          ? "queued dry-run maintenance handoff"
-          : "degraded: unable to dispatch dry-run maintenance handoff";
-      } else if (request.requireApproval) {
-        queueApproval(request, ctx);
-      } else {
-        const sent = dispatchHandoff(pi, request);
-        heartbeatState.lastOutcome = sent
-          ? "queued edit-enabled maintenance handoff"
-          : "degraded: unable to dispatch edit-enabled maintenance handoff";
-      }
+      handleMaintenanceDispatch(pi, ctx, trigger, signals, reason, fingerprint);
     } else if (action === "summarize") {
       heartbeatState.lastOutcome = `observed workspace activity: ${reason}`;
       notify(ctx, `heartbeat: ${heartbeatState.lastOutcome}`, "info");
@@ -939,11 +1037,7 @@ async function runHeartbeatCycle(pi: ExtensionAPI, ctx: any, trigger: string): P
       heartbeatState.lastOutcome = reason;
     }
 
-    heartbeatState.consecutiveFailures = 0;
-    heartbeatState.backoffLevel = 0;
-    addHistory(action, trigger, heartbeatState.lastOutcome);
-    persistState(pi);
-    updateStatus(ctx);
+    persistCycleSuccess(pi, ctx, action, trigger);
   } catch (error) {
     heartbeatState.consecutiveFailures += 1;
     heartbeatState.backoffLevel = Math.min(heartbeatState.backoffLevel + 1, 5);
@@ -962,8 +1056,7 @@ async function runHeartbeatCycle(pi: ExtensionAPI, ctx: any, trigger: string): P
     persistState(pi);
     updateStatus(ctx);
   } finally {
-    cycleInFlight = false;
-    scheduleNextBeat(pi);
+    finalizeCycleScheduling(pi);
   }
 }
 
@@ -1057,6 +1150,21 @@ function ingestTurnStartParseSignals(pi: ExtensionAPI, ctx: any): void {
     const policyResult = parsePolicyDiscriminatorOutput(recentText);
     if (policyResult.ok) {
       parsedStatuses.push(`policy ${policyResult.data.verdict} (${policyResult.data.failedCheckCount} failed checks)`);
+    }
+  } catch {
+    // Best-effort parse only; failures must never break scheduling.
+  }
+
+  try {
+    const orchestratorResult = parseOrchestratorResultPayload(recentText);
+    if (orchestratorResult.ok) {
+      const audit = normalizeOrchestratorAudit(orchestratorResult.data);
+      attachOrchestratorAudit(audit);
+
+      const statusPart = audit.status || audit.verdict || "unknown";
+      const attemptPart = typeof audit.attemptsUsed === "number" ? ` attempts=${audit.attemptsUsed}` : "";
+      const nextPart = audit.nextAction ? ` next=${audit.nextAction}` : "";
+      parsedStatuses.push(`orchestrator ${statusPart}${attemptPart}${nextPart}`.trim());
     }
   } catch {
     // Best-effort parse only; failures must never break scheduling.

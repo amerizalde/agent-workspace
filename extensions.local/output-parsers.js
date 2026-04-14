@@ -8,6 +8,7 @@ const HEARTBEAT_ACTIONS = new Set([
 const CONFIDENCE_LEVELS = new Set(["high", "medium", "low"]);
 const POLICY_VERDICTS = new Set(["PASS", "FAIL"]);
 const POLICY_CONFIDENCE = new Set(["high", "medium"]);
+const ORCHESTRATOR_STATUS = new Set(["passed", "failed"]);
 
 function normalizeLineValue(value) {
   return String(value || "").trim();
@@ -209,7 +210,100 @@ function parsePolicyDiscriminatorOutput(text) {
   };
 }
 
+function normalizeOrchestratorStatus(rawStatus) {
+  const normalized = normalizeLineValue(rawStatus).toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "pass") return "passed";
+  if (normalized === "fail") return "failed";
+  if (normalized === "done") return "passed";
+  return ORCHESTRATOR_STATUS.has(normalized) ? normalized : null;
+}
+
+function parseOptionalInteger(rawValue) {
+  const normalized = normalizeLineValue(rawValue);
+  if (!normalized) return null;
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+}
+
+function parseInlineList(rawValue) {
+  const normalized = normalizeLineValue(rawValue);
+  if (!normalized || normalized.toLowerCase() === "none") return [];
+  return normalized
+    .split(/[;,]/)
+    .map((item) => normalizeLineValue(item))
+    .filter(Boolean);
+}
+
+function parseOrchestratorResultPayload(text) {
+  try {
+    const statusField = findFieldLine(text, "status");
+    const verdictField = findFieldLine(text, "verdict");
+    const attemptsField = findFieldLine(text, "attempts_used");
+    const retriesField = findFieldLine(text, "retry_count") || findFieldLine(text, "retries_used");
+    const filesField = findFieldLine(text, "files_touched");
+    const filesBlock = parseBulletListBlock(text, "files_touched", {
+      strictBullets: false,
+      allowInlineNone: true,
+    });
+    const policyField = findFieldLine(text, "policy_summary");
+    const nextActionField = findFieldLine(text, "next_action");
+    const handoffField = findFieldLine(text, "handoff_target") || findFieldLine(text, "handoff_details");
+
+    const status = normalizeOrchestratorStatus(statusField ? statusField.value : "");
+    const verdict = normalizeLineValue(verdictField ? verdictField.value : "").toUpperCase() || null;
+    const attemptsUsed = parseOptionalInteger(attemptsField ? attemptsField.value : "");
+    const explicitRetryCount = parseOptionalInteger(retriesField ? retriesField.value : "");
+    const retryCount = explicitRetryCount !== null
+      ? explicitRetryCount
+      : attemptsUsed !== null
+        ? Math.max(0, attemptsUsed - 1)
+        : null;
+
+    const listFromBlock = filesBlock.items.filter(Boolean);
+    const listFromInline = filesField ? parseInlineList(filesField.value) : [];
+    const filesTouched = (listFromBlock.length > 0 ? listFromBlock : listFromInline)
+      .map((item) => normalizeLineValue(item))
+      .filter(Boolean);
+
+    const policySummary = normalizeLineValue(policyField ? policyField.value : "") || null;
+    const nextAction = normalizeLineValue(nextActionField ? nextActionField.value : "") || null;
+    const handoffTarget = normalizeLineValue(handoffField ? handoffField.value : "") || null;
+
+    const hasMinimumSignals = Boolean(status || verdict)
+      && Boolean(policySummary || nextAction || attemptsUsed !== null || filesTouched.length > 0);
+
+    if (!hasMinimumSignals) {
+      return {
+        ok: false,
+        reason: "missing required orchestrator payload fields",
+      };
+    }
+
+    return {
+      ok: true,
+      data: {
+        status,
+        verdict,
+        attemptsUsed,
+        retryCount,
+        filesTouched,
+        policySummary,
+        nextAction,
+        handoffTarget,
+      },
+    };
+  } catch {
+    return {
+      ok: false,
+      reason: "failed to parse orchestrator payload",
+    };
+  }
+}
+
 module.exports = {
   parseHeartbeatMaintainerOutput,
   parsePolicyDiscriminatorOutput,
+  parseOrchestratorResultPayload,
 };

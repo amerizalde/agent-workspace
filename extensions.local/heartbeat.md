@@ -47,9 +47,17 @@ Notes:
 - lastSignals: cached typed signal snapshot
 - pendingApproval: active approval payload with objective and expiry
 - lastApprovalDecision: approved, deferred, rejected, or null
+- lastOrchestratorAudit: latest normalized downstream orchestrator payload metadata captured during turn_start parsing
 - consecutiveFailures: number of back-to-back failed cycles
 - backoffLevel: multiplier step applied to the next interval
 - history: append-only recent cycle outcomes
+
+History entry extensions:
+1. orchestratorAudit (optional): last normalized downstream metadata attached to the most recent history entry when parsed.
+2. orchestratorAudit.capturedAt: ISO timestamp of metadata capture time.
+3. orchestratorAudit.status/verdict: normalized orchestrator status plus optional policy verdict.
+4. orchestratorAudit.attemptsUsed/retryCount: downstream attempts and retry metadata when present.
+5. orchestratorAudit.filesTouched/policySummary/nextAction/handoffTarget: summarized downstream output for audit/debugging.
 
 ## Cycle Stages
 1. Collect typed signals from recent session activity.
@@ -93,7 +101,8 @@ If a signal is unavailable, set available=false and provide zero/null values.
 ## Deterministic Parse Contracts
 1. heartbeat-maintainer output is parsed from required key-value lines: selected_objective, action_taken, outcome, and next_risk.
 2. policy-discriminator output is parsed from required key-value lines: verdict and confidence, with optional bullet lists for failed_checks and fix_directives.
-3. Parser failures are best-effort and non-fatal; they must not crash cycle scheduling.
+3. orchestrator downstream result payloads are parsed best-effort from status/verdict, attempts_used, files_touched, policy_summary, next_action, and handoff target fields.
+4. Parser failures are best-effort and non-fatal; they must not crash cycle scheduling.
 
 ## Safety Boundaries
 1. No recursive self-looping inside the delegated agent.
@@ -134,5 +143,6 @@ The implementation uses a bounded signal precedence chain: direct adapter extrac
 ## Oracle Checks
 - Parser oracle: `node extensions.local/test-oracles/validate-output-parsers.js`
 - Approval lifecycle oracle: `node extensions.local/test-oracles/validate-heartbeat-lifecycle.js`
+- Lifecycle enrichment oracle: `node extensions.local/test-oracles/validate-heartbeat-lifecycle-enrichment.js`
 - API capability oracle: `node extensions.local/test-oracles/validate-api-capabilities.js`
 - Signal adapter oracle: `node extensions.local/test-oracles/validate-signal-adapters.js`

@@ -50,5 +50,27 @@
         "text": "verdict: FAIL\nfailed_checks:\n- check_name: scope\nfix_directives:\n- keep scope tight\nconfidence: low"
       }
     ]
+  },
+  "orchestrator": {
+    "valid": [
+      {
+        "name": "status-and-verdict-with-bullets",
+        "text": "status: passed\nverdict: PASS\nattempts_used: 2\nfiles_touched:\n- extensions.local/heartbeat-agent.ts\n- extensions.local/output-parsers.js\npolicy_summary: all targeted checks passed\nnext_action: done\nhandoff_target: none"
+      },
+      {
+        "name": "inline-files-and-failed-status",
+        "text": "status: failed\nattempts_used: 3\nfiles_touched: extensions.local/heartbeat-agent.ts, extensions.local/test-oracles/validate-heartbeat-lifecycle-enrichment.js\npolicy_summary: one discriminator check failed\nnext_action: targeted follow-up\nhandoff_details: functional-generator"
+      }
+    ],
+    "invalid": [
+      {
+        "name": "missing-status-and-verdict",
+        "text": "attempts_used: 1\nfiles_touched:\n- extensions.local/heartbeat-agent.ts\npolicy_summary: summary\nnext_action: done"
+      },
+      {
+        "name": "status-without-other-signals",
+        "text": "status: passed"
+      }
+    ]
   }
 }
