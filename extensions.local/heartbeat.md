@@ -142,6 +142,7 @@ The implementation uses a bounded signal precedence chain: direct adapter extrac
 
 ## Oracle Checks
 - Parser oracle: `node extensions.local/test-oracles/validate-output-parsers.js`
+- Policy discriminator oracle: `node extensions.local/test-oracles/validate-policy-discriminator-oracle.js`
 - Approval lifecycle oracle: `node extensions.local/test-oracles/validate-heartbeat-lifecycle.js`
 - Lifecycle enrichment oracle: `node extensions.local/test-oracles/validate-heartbeat-lifecycle-enrichment.js`
 - API capability oracle: `node extensions.local/test-oracles/validate-api-capabilities.js`

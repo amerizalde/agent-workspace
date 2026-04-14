@@ -1,0 +1,81 @@
+{
+  "expectedPass": [
+    {
+      "name": "pass-inline-none-contract",
+      "text": "verdict: PASS\nfailed_checks: none\nfix_directives: none\nconfidence: high",
+      "expected": {
+        "verdict": "PASS",
+        "confidence": "high",
+        "failedCheckCount": 0,
+        "fixDirectiveCount": 0
+      }
+    },
+    {
+      "name": "fail-with-rubric-bullets",
+      "text": "verdict: FAIL\nfailed_checks:\n- naming clarity violated by placeholder identifier\n- scope discipline weakened by unrelated rewrite\nfix_directives:\n- Rename tmpValue to describe intent\nconfidence: medium",
+      "expected": {
+        "verdict": "FAIL",
+        "confidence": "medium",
+        "failedCheckCount": 2,
+        "fixDirectiveCount": 1
+      }
+    },
+    {
+      "name": "field-lines-with-leading-hyphen",
+      "text": "- verdict: PASS\n- failed_checks: none\n- fix_directives: none\n- confidence: high",
+      "expected": {
+        "verdict": "PASS",
+        "confidence": "high",
+        "failedCheckCount": 0,
+        "fixDirectiveCount": 0
+      }
+    },
+    {
+      "name": "minimal-required-fields-only",
+      "text": "verdict: PASS\nconfidence: medium",
+      "expected": {
+        "verdict": "PASS",
+        "confidence": "medium",
+        "failedCheckCount": 0,
+        "fixDirectiveCount": 0
+      }
+    }
+  ],
+  "expectedFail": [
+    {
+      "name": "missing-confidence",
+      "text": "verdict: PASS\nfailed_checks: none\nfix_directives: none",
+      "expectedReasonIncludes": "missing required policy-discriminator fields"
+    },
+    {
+      "name": "invalid-verdict",
+      "text": "verdict: MAYBE\nfailed_checks: none\nfix_directives: none\nconfidence: high",
+      "expectedReasonIncludes": "invalid verdict value"
+    },
+    {
+      "name": "invalid-confidence-low",
+      "text": "verdict: FAIL\nfailed_checks:\n- check_name: Scope discipline\nfix_directives:\n- Narrow edits to requested files\nconfidence: low",
+      "expectedReasonIncludes": "invalid confidence value"
+    },
+    {
+      "name": "failed-checks-inline-non-none",
+      "text": "verdict: FAIL\nfailed_checks: check_name: Naming clarity\nfix_directives: none\nconfidence: high",
+      "expectedReasonIncludes": "failed_checks must be a bullet list"
+    },
+    {
+      "name": "failed-checks-non-bullet-entry",
+      "text": "verdict: FAIL\nfailed_checks:\nnaming clarity violated by placeholder identifier\nfix_directives:\n- Rename placeholder symbols\nconfidence: medium",
+      "expectedReasonIncludes": "failed_checks must be a bullet list"
+    },
+    {
+      "name": "fix-directives-inline-non-none",
+      "text": "verdict: FAIL\nfailed_checks: none\nfix_directives: tighten scope and naming\nconfidence: high",
+      "expectedReasonIncludes": "fix_directives must be a bullet list"
+    },
+    {
+      "name": "fix-directives-non-bullet-entry",
+      "text": "verdict: FAIL\nfailed_checks:\n- check_name: Scope discipline\nfix_directives:\nadd only targeted edits\nconfidence: medium",
+      "expectedReasonIncludes": "fix_directives must be a bullet list"
+    }
+  ]
+}
