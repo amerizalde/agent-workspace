@@ -9,6 +9,9 @@ get-lost
 ## Layout
 single-face
 
+## Sets
+- The Lost Caverns of Ixalan
+
 ## Mana Cost
 - Printed: 1W
 - Generic: 1

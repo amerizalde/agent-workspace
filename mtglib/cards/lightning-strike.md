@@ -9,6 +9,9 @@ lightning-strike
 ## Layout
 single-face
 
+## Sets
+- Avatar: The Last Airbender
+
 ## Mana Cost
 - Printed: 1R
 - Generic: 1

@@ -9,6 +9,9 @@ day-of-judgment
 ## Layout
 single-face
 
+## Sets
+- Foundations
+
 ## Mana Cost
 - Printed: 2WW
 - Generic: 2

@@ -9,6 +9,9 @@ spyglass-siren
 ## Layout
 single-face
 
+## Sets
+- The Lost Caverns of Ixalan
+
 ## Mana Cost
 - Printed: U
 - Generic: 0

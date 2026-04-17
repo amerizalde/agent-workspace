@@ -9,6 +9,9 @@ greedy-freebooter
 ## Layout
 single-face
 
+## Sets
+- The Lost Caverns of Ixalan
+
 ## Mana Cost
 - Printed: B
 - Generic: 0

@@ -9,6 +9,9 @@ nowhere-to-run
 ## Layout
 single-face
 
+## Sets
+- Duskmourn: House of Horror
+
 ## Mana Cost
 - Printed: 1B
 - Generic: 1

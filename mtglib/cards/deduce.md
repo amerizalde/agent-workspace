@@ -9,6 +9,9 @@ deduce
 ## Layout
 single-face
 
+## Sets
+- Murders at Karlov Manor
+
 ## Mana Cost
 - Printed: 1U
 - Generic: 1

@@ -9,6 +9,9 @@ fear-of-isolation
 ## Layout
 single-face
 
+## Sets
+- Duskmourn: House of Horror
+
 ## Mana Cost
 - Printed: 1U
 - Generic: 1

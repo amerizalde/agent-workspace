@@ -1,69 +1,38 @@
 # MTGLib
 
-MTGLib is a library-only repository that stores Magic: The Gathering card entries as plain Markdown. The goal is a stable, human-readable corpus that is regular enough for future parsing, search, and analysis without requiring an app, database, or frontmatter.
+MTGLib is a local Magic: The Gathering card corpus stored as plain Markdown, plus a lightweight app layer for browsing the corpus and experimenting with deck generation against it.
 
-## Scope Boundary
+## What It Is
 
-This repository is the card-text library, not a search product, deck builder, parser, rules engine, or pricing dataset. Each entry represents one canonical gameplay identity rather than a separate file for every printing.
+The repository centers on a checked-in `cards/` directory where each card is represented as a human-readable Markdown document with a stable structure. That corpus is paired with a small FastAPI backend and frontend so the data can be explored locally without needing a database or external service.
 
-## Starter Slice Status
+## Why It Exists
 
-The current repository state is a Phase 1 starter slice. It defines the document contract, fixes the initial naming rules, and ships a small Standard-only corpus slice.
+The project exists to keep MTG card data easy to read, version, diff, and parse. Markdown is the source of truth, which makes the corpus useful both for humans editing it directly and for tools that want a predictable local dataset for search, indexing, analysis, or deck-building experiments.
 
-Phase 1 is intentionally small. The purpose is to lock format decisions before scaling coverage.
+## Get Started
 
-The current corpus is intentionally pruned to cards that are clearly Standard-legal as of 2026-04-16. If a prior sample's legality was uncertain for that date, it was removed instead of retained.
-
-## Corpus Organization
-
-- `CONTRACT.md`: the canonical Markdown contract for card files
-- `PLAN.md`: product plan and phased rollout
-- `cards/`: flat directory of canonical card entries
-- `scripts/fetch_standard_cards.py`: fetches the current Standard pool into Markdown files
-- `scripts/lint_cards.py`: rewrites card files into deterministic contract order and formatting
-
-The `cards/` directory is flat on purpose for the starter slice. Files use lowercase ASCII slugs with hyphen separators so they stay easy to browse and easy to target with simple text tools.
-
-## Regeneration Workflow
-
-The corpus can now be regenerated and normalized with the bundled Python scripts.
-
-Fetch the current Standard-legal paper card pool into `cards/`:
+From the `mtglib/` folder, run:
 
 ```powershell
-f:/workspace/.venv/Scripts/python.exe mtglib/scripts/fetch_standard_cards.py --today 2026-04-16
+.\start.cmd
 ```
 
-The fetcher now treats `cards/` as a synced Standard pool directory: it writes every currently legal paper card it finds and removes stale Markdown files that are no longer part of that pool.
+That launcher will:
 
-Lint and rewrite all current card files so they match `CONTRACT.md` deterministically:
+- create a local Python environment if needed
+- install backend and frontend dependencies
+- build the frontend when needed
+- start the app at `http://127.0.0.1:8000/`
+
+Requirements:
+
+- Python 3 on `PATH`
+- Node.js and `npm` on `PATH`
+- `git` is optional and only used for update checks
+
+If you only want to prepare the app without launching it:
 
 ```powershell
-f:/workspace/.venv/Scripts/python.exe mtglib/scripts/lint_cards.py
+.\start.cmd -SetupOnly
 ```
-
-Run the linter in check-only mode:
-
-```powershell
-f:/workspace/.venv/Scripts/python.exe mtglib/scripts/lint_cards.py --check
-```
-
-The fetcher uses the official Wizards Standard page as the legality boundary and intersects that with structured card data so the output stays aligned with the current legal pool while still using canonical Oracle text and metadata for formatting.
-
-## What A Card File Contains
-
-Each card file is written for raw Markdown reading first, but uses stable labels and ordering so future tooling can recover key fields directly from the body text.
-
-The current Standard-only corpus includes examples for:
-
-- single-face cards
-- creatures with stats
-- lands with no mana cost
-- instants and sorceries
-- enchantments and Auras
-
-The contract still supports multi-face layouts, planeswalkers, and more complex mana-cost structures, but the current card slice does not attempt to cover every supported layout.
-
-## What Is Deliberately Excluded
-
-Card files do not include legality, prices, collector numbers, set-by-set printings, or other printing-specific metadata. The repository is focused on canonical gameplay-relevant text.

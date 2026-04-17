@@ -9,6 +9,9 @@ optimistic-scavenger
 ## Layout
 single-face
 
+## Sets
+- Duskmourn: House of Horror
+
 ## Mana Cost
 - Printed: W
 - Generic: 0

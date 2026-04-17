@@ -46,6 +46,7 @@ class CardModel:
     canonical_name: str
     slug: str
     layout: str
+    sets: list[str] = field(default_factory=list)
     mana: ManaBreakdown | None = None
     type_line: str | None = None
     keywords: list[str] = field(default_factory=list)
@@ -128,6 +129,8 @@ def render_card(card: CardModel) -> str:
         "",
     ]
 
+    parts.extend(_render_sets_section(card.sets))
+
     if card.faces:
         parts.extend(["## Faces", ""])
         for index, face in enumerate(card.faces, start=1):
@@ -163,6 +166,7 @@ def parse_markdown_card(markdown_text: str) -> CardModel:
     canonical_name = _single_line(sections.get("Canonical Name", []), display_name)
     slug = _single_line(sections.get("Slug", []), slugify_name(canonical_name))
     layout = _single_line(sections.get("Layout", []), "single-face")
+    sets = parse_sets_section(sections.get("Sets", []))
 
     if "Faces" in sections:
         faces = _parse_faces(sections["Faces"])
@@ -171,6 +175,7 @@ def parse_markdown_card(markdown_text: str) -> CardModel:
             canonical_name=canonical_name,
             slug=slug,
             layout=layout,
+            sets=sets,
             faces=faces,
         )
 
@@ -185,6 +190,7 @@ def parse_markdown_card(markdown_text: str) -> CardModel:
         canonical_name=canonical_name,
         slug=slug,
         layout=layout,
+        sets=sets,
         mana=mana,
         type_line=_single_line(sections.get("Type Line", []), "None"),
         keywords=keywords,
@@ -226,6 +232,19 @@ def parse_keywords_section(lines: list[str]) -> list[str]:
     return values
 
 
+def parse_sets_section(lines: list[str]) -> list[str]:
+    values = []
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if not stripped.startswith("- "):
+            continue
+        value = normalize_ascii(stripped[2:].strip())
+        if value.lower() == "none":
+            return []
+        values.append(value)
+    return sorted(set(values), key=str.casefold)
+
+
 def normalize_rules_text(text: str) -> str:
     if not text or text.strip().lower() == "none":
         return "None"
@@ -253,7 +272,7 @@ def normalize_rules_text(text: str) -> str:
     return text.strip() or "None"
 
 
-def card_model_from_scryfall(card: dict[str, Any]) -> CardModel:
+def card_model_from_scryfall(card: dict[str, Any], set_names: list[str] | None = None) -> CardModel:
     display_name = normalize_display_name(card["name"])
     canonical_name = display_name
     slug = slugify_name(canonical_name)
@@ -283,6 +302,7 @@ def card_model_from_scryfall(card: dict[str, Any]) -> CardModel:
             canonical_name=canonical_name,
             slug=slug,
             layout=normalize_layout(card.get("layout", "normal"), True),
+            sets=_normalize_set_names(set_names or [card.get("set_name", "")]),
             faces=faces,
         )
 
@@ -291,6 +311,7 @@ def card_model_from_scryfall(card: dict[str, Any]) -> CardModel:
         canonical_name=canonical_name,
         slug=slug,
         layout="single-face",
+        sets=_normalize_set_names(set_names or [card.get("set_name", "")]),
         mana=parse_mana_cost(card.get("mana_cost", "")),
         type_line=normalize_ascii(card.get("type_line", "None")),
         keywords=[normalize_ascii(keyword) for keyword in card.get("keywords", [])],
@@ -422,6 +443,16 @@ def _render_keywords_section(keywords: list[str], heading: str = "## Keywords") 
     return lines
 
 
+def _render_sets_section(set_names: list[str]) -> list[str]:
+    lines = ["## Sets"]
+    if set_names:
+        lines.extend(f"- {set_name}" for set_name in _normalize_set_names(set_names))
+    else:
+        lines.append("- None")
+    lines.append("")
+    return lines
+
+
 def _render_mana_token(token: str) -> str:
     if token.isdigit() or token in {"W", "U", "B", "R", "G", "C", "X", "Y", "Z", "S"}:
         return token
@@ -530,6 +561,61 @@ def _single_line(lines: list[str], default: str) -> str:
         if stripped:
             return normalize_ascii(stripped)
     return default
+
+
+def _normalize_set_names(set_names: list[str]) -> list[str]:
+    normalized = [normalize_ascii(set_name.strip()) for set_name in set_names if set_name and set_name.strip()]
+    return sorted(set(normalized), key=str.casefold)
+
+
+def upsert_sets_section(markdown_text: str, set_names: list[str]) -> str:
+    newline = "\r\n" if "\r\n" in markdown_text else "\n"
+    has_trailing_newline = markdown_text.endswith(("\n", "\r\n"))
+    lines = markdown_text.replace("\r\n", "\n").split("\n")
+
+    if lines and lines[-1] == "":
+        lines = lines[:-1]
+
+    layout_index = _find_heading_index(lines, "## Layout")
+    if layout_index == -1:
+        raise ValueError("Card file is missing a Layout section")
+
+    first_body_heading = _find_next_heading_index(lines, layout_index + 1, "## ")
+    if first_body_heading == -1:
+        first_body_heading = len(lines)
+
+    next_heading_title = lines[first_body_heading] if first_body_heading < len(lines) else None
+    rendered_set_lines = [f"- {set_name}" for set_name in _normalize_set_names(set_names)]
+    if not rendered_set_lines:
+        rendered_set_lines = ["- None"]
+    set_block = ["## Sets", *rendered_set_lines, ""]
+
+    if next_heading_title == "## Sets":
+        end_index = _find_next_heading_index(lines, first_body_heading + 1, "## ")
+        if end_index == -1:
+            end_index = len(lines)
+        new_lines = lines[:first_body_heading] + set_block + lines[end_index:]
+    else:
+        new_lines = lines[:first_body_heading] + set_block + lines[first_body_heading:]
+
+    rendered = newline.join(new_lines)
+    if has_trailing_newline:
+        rendered += newline
+    return rendered
+
+
+def _find_heading_index(lines: list[str], heading: str) -> int:
+    for index, line in enumerate(lines):
+        if line == heading:
+            return index
+    return -1
+
+
+def _find_next_heading_index(lines: list[str], start_index: int, prefix: str) -> int:
+    for index in range(start_index, len(lines)):
+        if lines[index].startswith(prefix):
+            return index
+    return -1
 
 
 def normalize_ascii(text: str) -> str:

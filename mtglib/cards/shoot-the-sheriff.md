@@ -9,6 +9,9 @@ shoot-the-sheriff
 ## Layout
 single-face
 
+## Sets
+- Outlaws of Thunder Junction
+
 ## Mana Cost
 - Printed: 1B
 - Generic: 1

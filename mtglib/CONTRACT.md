@@ -29,20 +29,21 @@ Every card file must start with these sections in this order:
 2. `## Canonical Name`
 3. `## Slug`
 4. `## Layout`
+5. `## Sets`
 
 Single-face cards then continue in this order:
 
-5. `## Mana Cost`
-6. `## Type Line`
-7. `## Keywords`
-8. `## Rules Text`
-9. `## Stats` when required
-10. `## Loyalty` when required
+6. `## Mana Cost`
+7. `## Type Line`
+8. `## Keywords`
+9. `## Rules Text`
+10. `## Stats` when required
+11. `## Loyalty` when required
 
 Multi-face cards replace the single-face body sections with this structure:
 
-5. `## Faces`
-6. For each face, half, or side in printed order:
+6. `## Faces`
+7. For each face, half, or side in printed order:
    - `### Face <n>`
    - `#### Name`
    - `#### Mana Cost`
@@ -53,6 +54,14 @@ Multi-face cards replace the single-face body sections with this structure:
    - `#### Loyalty` when required
 
 No frontmatter is allowed.
+
+## Sets Section Policy
+
+- `## Sets` must be a Markdown list.
+- Each entry must be a human-readable set name such as `- Wilds of Eldraine`.
+- Keep the list sorted alphabetically for deterministic output.
+- The section represents the set names currently associated with that canonical card in this corpus.
+- If a card file is updated because another set should be added to the same canonical card, append that set to the list without changing unrelated card content.
 
 ## Conditional Sections
 
@@ -111,7 +120,7 @@ Do not include:
 
 - legality
 - prices
-- set names or set codes
+- set codes
 - collector numbers
 - rarity
 - artist credits

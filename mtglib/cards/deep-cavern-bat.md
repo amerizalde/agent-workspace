@@ -9,6 +9,9 @@ deep-cavern-bat
 ## Layout
 single-face
 
+## Sets
+- The Lost Caverns of Ixalan
+
 ## Mana Cost
 - Printed: 1B
 - Generic: 1

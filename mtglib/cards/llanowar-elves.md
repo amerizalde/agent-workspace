@@ -9,6 +9,9 @@ llanowar-elves
 ## Layout
 single-face
 
+## Sets
+- Foundations
+
 ## Mana Cost
 - Printed: G
 - Generic: 0

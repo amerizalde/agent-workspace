@@ -9,6 +9,9 @@ mischievous-pup
 ## Layout
 single-face
 
+## Sets
+- Foundations
+
 ## Mana Cost
 - Printed: 2W
 - Generic: 2

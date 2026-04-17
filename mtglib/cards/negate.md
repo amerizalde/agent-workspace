@@ -9,6 +9,9 @@ negate
 ## Layout
 single-face
 
+## Sets
+- Teenage Mutant Ninja Turtles
+
 ## Mana Cost
 - Printed: 1U
 - Generic: 1

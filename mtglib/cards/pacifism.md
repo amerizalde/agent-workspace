@@ -9,6 +9,9 @@ pacifism
 ## Layout
 single-face
 
+## Sets
+- Foundations
+
 ## Mana Cost
 - Printed: 1W
 - Generic: 1

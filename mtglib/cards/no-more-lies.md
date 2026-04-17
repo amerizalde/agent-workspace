@@ -9,6 +9,9 @@ no-more-lies
 ## Layout
 single-face
 
+## Sets
+- Murders at Karlov Manor
+
 ## Mana Cost
 - Printed: WU
 - Generic: 0

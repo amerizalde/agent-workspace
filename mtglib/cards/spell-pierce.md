@@ -9,6 +9,9 @@ spell-pierce
 ## Layout
 single-face
 
+## Sets
+- Aetherdrift
+
 ## Mana Cost
 - Printed: U
 - Generic: 0

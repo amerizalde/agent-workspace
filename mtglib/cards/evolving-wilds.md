@@ -9,6 +9,9 @@ evolving-wilds
 ## Layout
 single-face
 
+## Sets
+- Lorwyn Eclipsed
+
 ## Mana Cost
 - Printed: none
 - Generic: 0
@@ -30,4 +33,4 @@ Land
 - None
 
 ## Rules Text
-Tap, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.
+Tap, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.

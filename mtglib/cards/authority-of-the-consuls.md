@@ -9,6 +9,9 @@ authority-of-the-consuls
 ## Layout
 single-face
 
+## Sets
+- Foundations
+
 ## Mana Cost
 - Printed: W
 - Generic: 0

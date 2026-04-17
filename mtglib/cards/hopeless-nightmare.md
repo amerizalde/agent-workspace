@@ -9,6 +9,9 @@ hopeless-nightmare
 ## Layout
 single-face
 
+## Sets
+- Wilds of Eldraine
+
 ## Mana Cost
 - Printed: B
 - Generic: 0

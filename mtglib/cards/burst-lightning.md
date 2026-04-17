@@ -9,6 +9,9 @@ burst-lightning
 ## Layout
 single-face
 
+## Sets
+- Foundations
+
 ## Mana Cost
 - Printed: R
 - Generic: 0

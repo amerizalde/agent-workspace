@@ -9,6 +9,9 @@ novice-inspector
 ## Layout
 single-face
 
+## Sets
+- Murders at Karlov Manor
+
 ## Mana Cost
 - Printed: W
 - Generic: 0

@@ -9,6 +9,9 @@ duress
 ## Layout
 single-face
 
+## Sets
+- Foundations
+
 ## Mana Cost
 - Printed: B
 - Generic: 0

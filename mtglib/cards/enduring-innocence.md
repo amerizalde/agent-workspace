@@ -9,6 +9,9 @@ enduring-innocence
 ## Layout
 single-face
 
+## Sets
+- Duskmourn: House of Horror
+
 ## Mana Cost
 - Printed: 1WW
 - Generic: 1
